@@ -7,7 +7,9 @@ pub fn shared_pair<'a, T>(value: &'a [T]) -> (&'a [T], &'a [T]) {
     //@ leak slice_share::<T>('a, _t, value);
     //@ close_ref_own::<'a, [T]>(value);
     //@ close_ref_own::<'a, [T]>(value);
-    (value, value)
+    let pair = (value, value);
+    //@ close_tuple_2_own::<&'a [T], &'a [T]>(_t, pair);
+    pair
 }
 
 pub fn exclusive_identity<T>(value: &mut [T]) -> &mut [T] {

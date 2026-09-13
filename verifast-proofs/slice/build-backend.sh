@@ -85,4 +85,32 @@ else
     verification_failed=1
 fi
 cat "$refinement_log"
+
+for fixture in verified wrong_type; do
+    fixture_log="$proof_dir/results/refinement_$fixture.log"
+    if timeout 60 bin/refinement-checker --rustc-args '--crate-type=lib -Zthreads=1' \
+        "$proof_dir/tests/refinement/original.rs" \
+        "$proof_dir/tests/refinement/$fixture.rs" >"$fixture_log" 2>&1; then
+        fixture_status=0
+    else
+        fixture_status=$?
+    fi
+    cat "$fixture_log"
+    case "$fixture:$fixture_status" in
+        verified:0) echo 'PASS: const-generic refinement' ;;
+        wrong_type:1|wrong_type:2)
+            fixture_output=$(<"$fixture_log")
+            if [[ "$fixture_output" == *'ERROR: The two functions have different const-argument type predicates'* ]]; then
+                echo 'PASS: changed const-argument type rejected'
+            else
+                echo 'FAIL: changed const type did not reach the expected refinement check'
+                verification_failed=1
+            fi
+            ;;
+        *)
+            echo "FAIL: refinement fixture $fixture returned $fixture_status"
+            verification_failed=1
+            ;;
+    esac
+done
 exit "$verification_failed"

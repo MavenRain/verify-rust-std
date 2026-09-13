@@ -15,6 +15,14 @@ records Rust's nonnegative layout sizes, including zero-sized types, and the
 shared-reference ownership bridge accepts unsized pointees. A rejection case
 checks that bounds alone cannot manufacture shared element ownership.
 
+Rust's const-argument type predicates are retained in the exported MIR. The
+translator uses `const N: usize` to establish the corresponding integer bounds;
+other const-parameter types remain unsupported. The refinement checker compares
+both the constant and its type, and a rejection fixture changes `usize` to `u8`.
+The tuple ownership bridge follows the existing four-field tuple bridge: both
+fields must be owned before the pair can be packaged. This library specification
+is part of the trusted model and has a missing-field-ownership rejection test.
+
 The sharing regression splits a symbolic-length slice by induction over its
 element-sharing predicate. Rejection cases attempt to manufacture a borrow
 without memory or without ownership of its initialized elements. They must

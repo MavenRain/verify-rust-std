@@ -1,3 +1,12 @@
+diff --git a/bin/rust/prelude.rsspec b/bin/rust/prelude.rsspec
+index e7e07fe..0093378 100644
+--- a/bin/rust/prelude.rsspec
++++ b/bin/rust/prelude.rsspec
+@@ -35,0 +36,4 @@ pred<T1, T2> <(T1, T2)>.share(k, t, l) = <T1>.share(k, t, &(*l).0) &*& <T2>.shar
++lem close_tuple_2_own<T1, T2>(t: thread_id_t, v: (T1, T2));
++    req <T1>.own(t, v.0) &*& <T2>.own(t, v.1);
++    ens <(T1, T2)>.own(t, v);
++
 diff --git a/bin/rust/rust_belt/general.rsspec b/bin/rust/rust_belt/general.rsspec
 index dff404f..6ac9f83 100644
 --- a/bin/rust/rust_belt/general.rsspec
@@ -53,8 +62,49 @@ index dff404f..6ac9f83 100644
 @@ -194 +241 @@ lem close_ref_mut_own<'a, T>(t: thread_id_t, l: &'a mut T);
 -lem close_ref_own<'a, T>(l: &'a T);
 +lem close_ref_own<'a, T: ?Sized>(l: &'a T);
+diff --git a/src/refinement_checker/refinement_checker.ml b/src/refinement_checker/refinement_checker.ml
+index 78a4a6d..897ec52 100644
+--- a/src/refinement_checker/refinement_checker.ml
++++ b/src/refinement_checker/refinement_checker.ml
+@@ -2341,0 +2342,13 @@ let check_body_refines_body bodies0 bodies1 def_path body0 body1 =
++  let const_predicates genv preds =
++    List.filter_map (function
++      | ConstArgHasType pred -> Some (decode_const_expr genv pred.constant, decode_ty genv pred.ty)
++      | Outlives _ | Trait _ | Projection _ | Ignored -> None) preds
++  in
++  if const_predicates root_genv0 preds0 <> const_predicates root_genv1 preds1 then
++    error "The two functions have different const-argument type predicates";
++  let is_const_predicate = function
++    | ConstArgHasType _ -> true
++    | Outlives _ | Trait _ | Projection _ | Ignored -> false
++  in
++  let _, preds0 = List.partition is_const_predicate preds0 in
++  let _, preds1 = List.partition is_const_predicate preds1 in
+diff --git a/src/rust_frontend/vf_mir/vf_mir.capnp b/src/rust_frontend/vf_mir/vf_mir.capnp
+index ab9c568..2cce6fb 100644
+--- a/src/rust_frontend/vf_mir/vf_mir.capnp
++++ b/src/rust_frontend/vf_mir/vf_mir.capnp
+@@ -420,0 +421,4 @@ struct Predicate {
++    struct ConstArgHasType {
++        constant @0: TyConst;
++        ty @1: Ty;
++    }
+@@ -424,0 +429 @@ struct Predicate {
++        constArgHasType @4: ConstArgHasType;
+diff --git a/src/rust_frontend/vf_mir_exporter/src/lib.rs b/src/rust_frontend/vf_mir_exporter/src/lib.rs
+index 89d9b96..e3ca01c 100644
+--- a/src/rust_frontend/vf_mir_exporter/src/lib.rs
++++ b/src/rust_frontend/vf_mir_exporter/src/lib.rs
+@@ -1222,0 +1223,7 @@ mod vf_mir_builder {
++                ty::ClauseKind::ConstArgHasType(constant, ty) => {
++                    let mut const_cpn = pred_cpn.init_const_arg_has_type();
++                    Self::encode_typesystem_constant(
++                        enc_ctx.tcx, enc_ctx, &constant, const_cpn.reborrow().init_constant(),
++                    );
++                    Self::encode_ty(enc_ctx.tcx, enc_ctx, ty, const_cpn.init_ty());
++                }
 diff --git a/src/rust_frontend/vf_mir_translator/vf_mir_translator.ml b/src/rust_frontend/vf_mir_translator/vf_mir_translator.ml
-index 667069d..0ef368b 100644
+index 667069d..8bff946 100644
 --- a/src/rust_frontend/vf_mir_translator/vf_mir_translator.ml
 +++ b/src/rust_frontend/vf_mir_translator/vf_mir_translator.ml
 @@ -1217 +1217,28 @@ module Make (Args : VF_MIR_TRANSLATOR_ARGS) = struct
@@ -139,6 +189,31 @@ index 667069d..0ef368b 100644
 +                    CallExpr
 +                      (loc, "array_share", [elem_ty; len_ty], [],
 +                       [LitPat k; LitPat t; LitPat l], PredCtorCall))));
+@@ -4599 +4647,2 @@ module Make (Args : VF_MIR_TRANSLATOR_ARGS) = struct
+-    | _ -> `Ignored
++    | ConstArgHasType pred -> `ConstArgHasType pred
++    | Ignored -> `Ignored
+@@ -4791,0 +4841,17 @@ module Make (Args : VF_MIR_TRANSLATOR_ARGS) = struct
++        let* const_type_asns =
++          ListAux.try_filter_map
++            (function
++              | `ConstArgHasType pred ->
++                  let open Ast in
++                  if pred.D.ty.kind = D.UInt D.USize then
++                    let* value = translate_ty_const pred.constant fn_sig_loc in
++                    let zero = IntLit (fn_sig_loc, Big_int.zero_big_int, true, false, NoLSuffix) in
++                    Ok (Some (ExprAsn (fn_sig_loc,
++                      Operation (fn_sig_loc, And, [
++                        Operation (fn_sig_loc, Le, [zero; value]);
++                        Operation (fn_sig_loc, Le, [value; Var (fn_sig_loc, "usize::MAX")])
++                      ]))))
++                  else Error (`TrBodyFailed (fn_sig_loc, "Only usize const parameters are supported"))
++              | `Outlives _ | `Trait _ | `Projection _ | `Ignored -> Ok None)
++            preds
++        in
+@@ -4947,0 +5014,2 @@ module Make (Args : VF_MIR_TRANSLATOR_ARGS) = struct
++          let pre_post = Option.map (fun (pre, post) ->
++            (List.fold_right (fun asn pre -> Ast.Sep (fn_sig_loc, asn, pre)) const_type_asns pre, post)) pre_post in
 diff --git a/src/verifast1.ml b/src/verifast1.ml
 index 157f63a..0dd548b 100644
 --- a/src/verifast1.ml
