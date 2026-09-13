@@ -44,6 +44,15 @@ for test_file in "$proof_dir"/tests/*.rs; do
     fi
     cat "$test_log"
     case "$test_name:$verification_status" in
+        reject_null_array_ref:1|reject_misaligned_array_ref:1)
+            test_output=$(<"$test_log")
+            if [[ "$test_output" == *'aliasing.rsspec('*'error: Cannot prove condition.'* ]]; then
+                echo "PASS: $test_name rejected for invalid reference geometry"
+            else
+                echo "FAIL: $test_name did not reach the expected reference geometry check"
+                verification_failed=1
+            fi
+            ;;
         unsupported_raw_mut_slice:1)
             test_output=$(<"$test_log")
             if [[ "$test_output" == *'error: Checked raw mutable references to unsized pointees are not yet supported'* ]]; then

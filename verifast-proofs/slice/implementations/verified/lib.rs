@@ -36,7 +36,8 @@ impl<T> [T] {
     }
 
     pub const fn first_chunk_mut<'a, const N: usize>(&'a mut self) -> Option<&'a mut [T; N]> {
-        //@ assert full_borrow('a, slice_full_borrow_content::<T>(_t, ?data, ?length));
+        //@ let data = self as *T;
+        //@ let length = ptr_len(self);
         if self.len() < N {
             //@ leak full_borrow('a, slice_full_borrow_content::<T>(_t, data, length));
             //@ close std::option::Option_own::<&'a mut [T; N]>(_t, std::option::Option::None);
@@ -44,6 +45,7 @@ impl<T> [T] {
         } else {
             let pointer = self.as_mut_ptr().cast_array();
             //@ lemmas::slice_prefix_valid(data, length, usize_of_const(typeid(N)));
+            //@ Array_align::<T, N>();
             //@ open_full_borrow_strong_('a, slice_full_borrow_content::<T>(_t, data, length));
             //@ lemmas::split_owned_elements(_t, data, length, usize_of_const(typeid(N)));
             //@ lemmas::slice_to_owned_array::<T, N>(_t, data);

@@ -1,3 +1,12 @@
+diff --git a/bin/rust/aliasing.rsspec b/bin/rust/aliasing.rsspec
+index 141615d..b1e2656 100644
+--- a/bin/rust/aliasing.rsspec
++++ b/bin/rust/aliasing.rsspec
+@@ -56,2 +56,2 @@ fn create_ref_mut<T>(x: *T) -> *T;
+-//@ req *x |-> ?v;
+-//@ ens *result |-> v &*& ref_mut_end_token(result, x);
++//@ req *x |-> ?v &*& x != 0 &*& x as usize % std::mem::align_of::<T>() == 0;
++//@ ens *result |-> v &*& ref_mut_end_token(result, x) &*& result != 0 &*& result as usize == x as usize &*& result as usize % std::mem::align_of::<T>() == 0;
 diff --git a/bin/rust/prelude.rsspec b/bin/rust/prelude.rsspec
 index e7e07fe..0093378 100644
 --- a/bin/rust/prelude.rsspec
@@ -8,13 +17,20 @@ index e7e07fe..0093378 100644
 +    ens <(T1, T2)>.own(t, v);
 +
 diff --git a/bin/rust/prelude_core.rsspec b/bin/rust/prelude_core.rsspec
-index 992cade..c09398c 100644
+index 992cade..b6144be 100644
 --- a/bin/rust/prelude_core.rsspec
 +++ b/bin/rust/prelude_core.rsspec
-@@ -303,0 +304,4 @@ fix Array_of_elems<T, N>(elems: list<T>) -> [T; N];
+@@ -303,0 +304,11 @@ fix Array_of_elems<T, N>(elems: list<T>) -> [T; N];
 +lem Array_elems_Array_of_elems<T, N>(elems: list<T>);
 +    req length(elems) == usize_of_const(typeid(N));
 +    ens Array_elems::<T, N>(Array_of_elems::<T, N>(elems)) == elems;
++
++// Rust arrays retain their element alignment, including empty arrays.
++lem Array_align<T, N>();
++    req 0 <= usize_of_const(typeid(N)) &*& usize_of_const(typeid(N)) <= usize::MAX &*&
++        0 <= std::mem::size_of::<T>() &*&
++        usize_of_const(typeid(N)) * std::mem::size_of::<T>() <= isize::MAX;
++    ens std::mem::align_of::<[T; N]>() == std::mem::align_of::<T>();
 +
 diff --git a/bin/rust/rust_belt/general.rsspec b/bin/rust/rust_belt/general.rsspec
 index dff404f..6ac9f83 100644

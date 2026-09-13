@@ -1,5 +1,5 @@
 pub unsafe fn from_raw<'a, T>(pointer: *mut T) -> Option<&'a mut T>
-//@ req thread_token(?t) &*& [?q]lifetime_token('a) &*& full_borrow('a, <T>.full_borrow_content(t, pointer));
+//@ req thread_token(?t) &*& [?q]lifetime_token('a) &*& full_borrow('a, <T>.full_borrow_content(t, pointer)) &*& pointer != 0 &*& pointer as usize % std::mem::align_of::<T>() == 0;
 //@ ens thread_token(t) &*& [q]lifetime_token('a) &*& std::option::Option_own::<&'a mut T>(t, result);
 //@ on_unwind_ens false;
 {
