@@ -115,7 +115,7 @@ index 89d9b96..e3ca01c 100644
 +                    Self::encode_ty(enc_ctx.tcx, enc_ctx, ty, const_cpn.init_ty());
 +                }
 diff --git a/src/rust_frontend/vf_mir_translator/vf_mir_translator.ml b/src/rust_frontend/vf_mir_translator/vf_mir_translator.ml
-index 667069d..2aae3de 100644
+index 667069d..8667c2e 100644
 --- a/src/rust_frontend/vf_mir_translator/vf_mir_translator.ml
 +++ b/src/rust_frontend/vf_mir_translator/vf_mir_translator.ml
 @@ -1217 +1217,28 @@ module Make (Args : VF_MIR_TRANSLATOR_ARGS) = struct
@@ -200,6 +200,9 @@ index 667069d..2aae3de 100644
 +                    CallExpr
 +                      (loc, "array_share", [elem_ty; len_ty], [],
 +                       [LitPat k; LitPat t; LitPat l], PredCtorCall))));
+@@ -2280 +2328 @@ module Make (Args : VF_MIR_TRANSLATOR_ARGS) = struct
+-            | "std::ptr::mut_ptr::<impl *const T>::cast"
++            | "std::ptr::const_ptr::<impl *const T>::cast"
 @@ -4599 +4647,2 @@ module Make (Args : VF_MIR_TRANSLATOR_ARGS) = struct
 -    | _ -> `Ignored
 +    | ConstArgHasType pred -> `ConstArgHasType pred

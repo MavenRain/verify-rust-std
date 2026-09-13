@@ -25,7 +25,7 @@ impl<T> [T] {
             //@ open [?f]ref_initialized_::<[T; N]>(p)();
             // SAFETY: We explicitly check for the correct number of elements,
             //   and do not let the reference outlive the slice.
-            let result = Some(unsafe { &*pointer });
+            let result: Option<&'a [T; N]> = Some(unsafe { &*pointer });
             //@ close [f]ref_initialized_::<[T; N]>(p)();
             //@ close_frac_borrow(f, ref_initialized_::<[T; N]>(p));
             //@ let array = p as &'a [T; N];
