@@ -85,6 +85,23 @@ lem slice_prefix_valid<T>(p: *T, n: usize, mid: usize)
     mul_mono_l(mid, n, std::mem::size_of::<T>());
 }
 
+lem slice_successor_valid<T>(p: *T, n: usize)
+    req slice_ref_valid(p, n) == true &*& 0 < n;
+    ens slice_ref_valid(p + 1, n - 1) == true;
+{
+    std::alloc::is_valid_layout_size_of_align_of::<T>();
+    is_power_of_2_pos(std::mem::align_of::<T>());
+    slice_prefix_valid(p, n, 1);
+    mul_mono_l(0, n - 1, std::mem::size_of::<T>());
+    mul_mono_l(n - 1, n, std::mem::size_of::<T>());
+    size_align::<T>();
+    div_rem(p as usize, std::mem::align_of::<T>());
+    div_rem(std::mem::size_of::<T>(), std::mem::align_of::<T>());
+    div_rem_nonneg_unique((p + 1) as usize, std::mem::align_of::<T>(),
+        p as usize / std::mem::align_of::<T>() +
+        std::mem::size_of::<T>() / std::mem::align_of::<T>(), 0);
+}
+
 lem slice_suffix_valid<T>(k: lifetime_t, t: thread_id_t, p: *T, n: usize, mid: usize)
     req [_]slice_elements_share(k, t, p, n) &*&
         slice_ref_valid(p, n) == true &*& 0 <= mid &*& mid <= n;
@@ -92,21 +109,45 @@ lem slice_suffix_valid<T>(k: lifetime_t, t: thread_id_t, p: *T, n: usize, mid: u
         slice_ref_valid(p + mid, n - mid) == true;
 {
     if mid != 0 {
-        std::alloc::is_valid_layout_size_of_align_of::<T>();
-        is_power_of_2_pos(std::mem::align_of::<T>());
-        slice_prefix_valid(p, n, 1);
-        mul_mono_l(0, n - 1, std::mem::size_of::<T>());
-        mul_mono_l(n - 1, n, std::mem::size_of::<T>());
-        size_align::<T>();
-        div_rem(p as usize, std::mem::align_of::<T>());
-        div_rem(std::mem::size_of::<T>(), std::mem::align_of::<T>());
-        div_rem_nonneg_unique((p + 1) as usize, std::mem::align_of::<T>(),
-            p as usize / std::mem::align_of::<T>() +
-            std::mem::size_of::<T>() / std::mem::align_of::<T>(), 0);
+        slice_successor_valid(p, n);
         open slice_elements_share(k, t, p, n);
         slice_suffix_valid(k, t, p + 1, n - 1, mid - 1);
         close slice_elements_share(k, t, p, n);
         leak slice_elements_share(k, t, p, n);
     }
+}
+
+lem suffix_valid_for_elements<T>(values: list<T>, t: thread_id_t, p: *T, mid: usize)
+    req p[..length(values)] |-> values &*& foreach(values, (own)(t)) &*&
+        slice_ref_valid(p, length(values)) == true &*& 0 <= mid &*& mid <= length(values);
+    ens p[..length(values)] |-> values &*& foreach(values, (own)(t)) &*&
+        slice_ref_valid(p + mid, length(values) - mid) == true;
+{
+    let n = length(values);
+    match values {
+        nil => {}
+        cons(value, tail) => {
+            if mid != 0 {
+                slice_successor_valid(p, n);
+                open array::<T>(p, n, values);
+                open foreach(values, (own)(t));
+                suffix_valid_for_elements(tail, t, p + 1, mid - 1);
+                close foreach(values, (own)(t));
+                close array::<T>(p, n, values);
+            }
+        }
+    }
+}
+
+lem owned_slice_suffix_valid<T>(t: thread_id_t, p: *T, n: usize, mid: usize)
+    req slice_full_borrow_content::<T>(t, p, n)() &*&
+        slice_ref_valid(p, n) == true &*& 0 <= mid &*& mid <= n;
+    ens slice_full_borrow_content::<T>(t, p, n)() &*&
+        slice_ref_valid(p + mid, n - mid) == true;
+{
+    open slice_full_borrow_content::<T>(t, p, n)();
+    assert p[..n] |-> ?values;
+    suffix_valid_for_elements(values, t, p, mid);
+    close slice_full_borrow_content::<T>(t, p, n)();
 }
 @*/

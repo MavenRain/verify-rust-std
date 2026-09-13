@@ -37,6 +37,8 @@ A rejection test guards against deriving a contradiction from empty storage
 at null, and a positive test round-trips an empty array at a non-null pointer.
 The ghost parameter representing const `N` carries no `Sized` requirement;
 only the element type needs that bound.
+Owned suffix validity uses induction over the element list. It preserves the
+whole slice's ownership and reuses the shared proof's pointer arithmetic lemma.
 The array-alignment rule follows the [Rust Reference's array layout guarantee](https://doc.rust-lang.org/reference/type-layout.html#array-layout),
 including empty arrays. This rule is also part of the trusted model.
 Rejection cases attempt to manufacture a borrow
@@ -60,13 +62,13 @@ It rejects raw mutable references to unsized pointees until those checks are
 implemented. Regressions require rejection without storage or with only a
 fraction of the required ownership.
 
-The first verified implementation is `first_chunk`, together with its
-`cast_array` helper. At commit `286365cd`, [remote CI](https://github.com/MavenRain/verify-rust-std/actions/runs/34744141897)
+The verified implementations are `first_chunk` and `first_chunk_mut`, together
+with their `cast_array` helpers. At commit `c0129c88`, [remote CI](https://github.com/MavenRain/verify-rust-std/actions/runs/34749040627)
 passed verification, exact source binding, MIR refinement, all backend tests,
 and both pinned upstream regression suites. The proof uses generic `T` and
 symbolic slice lengths and `N`. The remaining challenge functions still need
 source-bound proofs.
-CI compares both original method bodies with the standard-library checkout
+CI compares all four original method bodies with the standard-library checkout
 and runs the existing MIR refinement checker between the original and
 annotated copies.
 Both copies include the same proof-only module; its contents are ghost code.
@@ -76,11 +78,9 @@ result ownership after the Rust expression has evaluated. Reference creation
 uses the existing `precreate_ref` and `init_ref_share` rules, retaining the
 required lifetime tokens. A rejection test omits the element-sharing predicate.
 
-`first_chunk_mut` and its mutable-pointer `cast_array` helper are under
-development. The proof splits owned elements, creates a checked mutable array
+The `first_chunk_mut` proof splits owned elements, creates a checked mutable array
 reference, and proves restoration of the whole slice after the borrow ends.
-These methods are source-bound but are not counted as verified until remote
-verification and MIR refinement pass.
+Its source binding, verification and MIR refinement passed in the same remote run.
 
 `backend.patch` applies to the pinned source. `apply-array-value-fix.py` applies
 the array-local change and reference-check option wiring with exact byte
