@@ -2,7 +2,14 @@
 mod lemmas;
 
 /*@
-lem owned_array_roundtrip<T, N>(t: thread_id_t, p: *T)
+lem array_alignment<T, N: ?Sized>(p: *T)
+    req slice_ref_valid(p, usize_of_const(typeid(N))) == true;
+    ens p as usize % std::mem::align_of::<[T; N]>() == 0;
+{
+    Array_align::<T, N>();
+}
+
+lem owned_array_roundtrip<T, N: ?Sized>(t: thread_id_t, p: *T)
     req p != 0 &*& slice_full_borrow_content::<T>(t, p, usize_of_const(typeid(N)))();
     ens slice_full_borrow_content::<T>(t, p, usize_of_const(typeid(N)))();
 {
@@ -10,7 +17,7 @@ lem owned_array_roundtrip<T, N>(t: thread_id_t, p: *T)
     lemmas::owned_array_to_slice::<T, N>(t, p as *[T; N]);
 }
 
-lem empty_array_roundtrip<T, N>(t: thread_id_t, p: *T)
+lem empty_array_roundtrip<T, N: ?Sized>(t: thread_id_t, p: *T)
     req slice_ref_valid(p, 0) == true &*& usize_of_const(typeid(N)) == 0;
     ens slice_full_borrow_content::<T>(t, p, 0)();
 {

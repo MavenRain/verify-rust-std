@@ -26,7 +26,7 @@ lem join_owned_elements<T>(t: thread_id_t, p: *T, n: usize, mid: usize)
     close slice_full_borrow_content::<T>(t, p, n)();
 }
 
-lem slice_to_owned_array<T, N>(t: thread_id_t, p: *T)
+lem slice_to_owned_array<T, N: ?Sized>(t: thread_id_t, p: *T)
     req p != 0 &*& slice_full_borrow_content::<T>(t, p, usize_of_const(typeid(N)))();
     ens array_full_borrow_content::<T, N>(t, p as *[T; N])();
 {
@@ -38,7 +38,7 @@ lem slice_to_owned_array<T, N>(t: thread_id_t, p: *T)
     close array_full_borrow_content::<T, N>(t, p as *[T; N])();
 }
 
-lem owned_array_to_slice<T, N>(t: thread_id_t, p: *[T; N])
+lem owned_array_to_slice<T, N: ?Sized>(t: thread_id_t, p: *[T; N])
     req array_full_borrow_content::<T, N>(t, p)();
     ens slice_full_borrow_content::<T>(t, p as *T, usize_of_const(typeid(N)))();
 {
@@ -48,7 +48,7 @@ lem owned_array_to_slice<T, N>(t: thread_id_t, p: *[T; N])
     close slice_full_borrow_content::<T>(t, p as *T, usize_of_const(typeid(N)))();
 }
 
-lem restore_owned_prefix<T, N>(t: thread_id_t, p: *T, n: usize, prefix: *[T; N])
+lem restore_owned_prefix<T, N: ?Sized>(t: thread_id_t, p: *T, n: usize, prefix: *[T; N])
     req array_full_borrow_content::<T, N>(t, prefix)() &*&
         ref_mut_end_token(prefix, p as *[T; N]) &*&
         slice_full_borrow_content::<T>(t, p + usize_of_const(typeid(N)), n - usize_of_const(typeid(N)))();

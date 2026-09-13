@@ -17,23 +17,36 @@ index e7e07fe..0093378 100644
 +    ens <(T1, T2)>.own(t, v);
 +
 diff --git a/bin/rust/prelude_core.rsspec b/bin/rust/prelude_core.rsspec
-index 992cade..a50e14b 100644
+index 992cade..d22a6b7 100644
 --- a/bin/rust/prelude_core.rsspec
 +++ b/bin/rust/prelude_core.rsspec
-@@ -303,0 +304,11 @@ fix Array_of_elems<T, N>(elems: list<T>) -> [T; N];
-+lem Array_elems_Array_of_elems<T, N>(elems: list<T>);
+@@ -300 +300 @@ lem_auto usize_of_const_of_usize(n: usize);
+-fix Array_elems<T, N>(array: [T; N]) -> list<T>;
++fix Array_elems<T, N: ?Sized>(array: [T; N]) -> list<T>;
+@@ -302 +302,12 @@ fix Array_elems<T, N>(array: [T; N]) -> list<T>;
+-fix Array_of_elems<T, N>(elems: list<T>) -> [T; N];
++fix Array_of_elems<T, N: ?Sized>(elems: list<T>) -> [T; N];
++
++lem Array_elems_Array_of_elems<T, N: ?Sized>(elems: list<T>);
 +    req length(elems) == usize_of_const(typeid(N));
 +    ens Array_elems::<T, N>(Array_of_elems::<T, N>(elems)) == elems;
 +
 +// Rust arrays retain their element alignment, including empty arrays.
-+lem Array_align<T, N>();
++lem Array_align<T, N: ?Sized>();
 +    req 0 <= usize_of_const(typeid(N)) &*& usize_of_const(typeid(N)) <= usize::MAX &*&
 +        0 <= std::mem::size_of::<T>() &*&
 +        usize_of_const(typeid(N)) * std::mem::size_of::<T>() <= isize::MAX;
 +    ens std::mem::align_of::<[T; N]>() == std::mem::align_of::<T>();
-+
-@@ -324 +335 @@ lem array_to_Array<T, N>(p: *[T; N]);
+@@ -315 +326 @@ lem_auto slice_of_elems_slice_elems<T: ?Sized>(slice: [T]);
+-lem Array__to_array_<T, N>(p: *[T; N]);
++lem Array__to_array_<T, N: ?Sized>(p: *[T; N]);
+@@ -319 +330 @@ lem Array__to_array_<T, N>(p: *[T; N]);
+-lem Array_to_array<T, N>(p: *[T; N]);
++lem Array_to_array<T, N: ?Sized>(p: *[T; N]);
+@@ -323,2 +334,2 @@ lem Array_to_array<T, N>(p: *[T; N]);
+-lem array_to_Array<T, N>(p: *[T; N]);
 -    req [?f](p as *T)[..usize_of_const(typeid(N))] |-> ?elems;
++lem array_to_Array<T, N: ?Sized>(p: *[T; N]);
 +    req p != 0 &*& [?f](p as *T)[..usize_of_const(typeid(N))] |-> ?elems;
 diff --git a/bin/rust/rust_belt/general.rsspec b/bin/rust/rust_belt/general.rsspec
 index dff404f..6ac9f83 100644

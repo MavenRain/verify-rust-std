@@ -35,6 +35,8 @@ Array conversion also requires a non-null pointer: an empty element region
 alone cannot justify the array storage predicate, which implies non-nullness.
 A rejection test guards against deriving a contradiction from empty storage
 at null, and a positive test round-trips an empty array at a non-null pointer.
+The ghost parameter representing const `N` carries no `Sized` requirement;
+only the element type needs that bound.
 The array-alignment rule follows the [Rust Reference's array layout guarantee](https://doc.rust-lang.org/reference/type-layout.html#array-layout),
 including empty arrays. This rule is also part of the trusted model.
 Rejection cases attempt to manufacture a borrow
