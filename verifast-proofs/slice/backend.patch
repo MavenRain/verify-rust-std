@@ -1,8 +1,8 @@
 diff --git a/bin/rust/rust_belt/general.rsspec b/bin/rust/rust_belt/general.rsspec
-index dff404f..8facffc 100644
+index dff404f..6ac9f83 100644
 --- a/bin/rust/rust_belt/general.rsspec
 +++ b/bin/rust/rust_belt/general.rsspec
-@@ -172,0 +173,42 @@ type_pred_def for<T> <[T]>.own = slice_own::<T>;
+@@ -172,0 +173,47 @@ type_pred_def for<T> <[T]>.own = slice_own::<T>;
 +// A slice borrow retains the ownership of every initialized element.
 +pred_ctor slice_full_borrow_content<T>(t: thread_id_t, p: *T, n: usize)() =
 +    p[..n] |-> ?values &*& foreach(values, (own)(t));
@@ -18,15 +18,20 @@ index dff404f..8facffc 100644
 +
 +fix slice_ref_valid<T>(p: *T, n: usize) -> bool {
 +    p != 0 &&
++    0 <= std::mem::size_of::<T>() &&
 +    p as usize % std::mem::align_of::<T>() == 0 &&
 +    0 <= n && n <= usize::MAX &&
 +    n * std::mem::size_of::<T>() <= isize::MAX &&
 +    pointer_within_limits(p) && pointer_within_limits(p + n)
 +}
 +
++fix slice_data<T>(p: *_) -> *T {
++    strip_pointer_metadata(p as pointer) as *T
++}
++
 +pred_ctor slice_share<T>()(k: lifetime_t, t: thread_id_t, p: *[T]) =
-+    slice_ref_valid(p as *T, ptr_len(p)) == true &*&
-+    [_]slice_elements_share(k, t, p as *T, ptr_len(p));
++    slice_ref_valid(slice_data::<T>(p), ptr_len(p)) == true &*&
++    [_]slice_elements_share(k, t, slice_data::<T>(p), ptr_len(p));
 +
 +type_pred_def for<T> <[T]>.share = slice_share::<T>;
 +
@@ -38,13 +43,16 @@ index dff404f..8facffc 100644
 +    *p |-> ?v &*& array_own::<T, N>(t, v);
 +
 +pred_ctor array_share<T, N>()(k: lifetime_t, t: thread_id_t, p: *[T; N]) =
-+    slice_ref_valid(p as *T, usize_of_const(typeid(N))) == true &*&
-+    [_]slice_elements_share(k, t, p as *T, usize_of_const(typeid(N)));
++    slice_ref_valid(slice_data::<T>(p), usize_of_const(typeid(N))) == true &*&
++    [_]slice_elements_share(k, t, slice_data::<T>(p), usize_of_const(typeid(N)));
 +
 +type_pred_def for<T, N> <[T; N]>.own = array_own::<T, N>;
 +type_pred_def for<T, N> <[T; N]>.full_borrow_content = array_full_borrow_content::<T, N>;
 +type_pred_def for<T, N> <[T; N]>.share = array_share::<T, N>;
 +
+@@ -194 +241 @@ lem close_ref_mut_own<'a, T>(t: thread_id_t, l: &'a mut T);
+-lem close_ref_own<'a, T>(l: &'a T);
++lem close_ref_own<'a, T: ?Sized>(l: &'a T);
 diff --git a/src/rust_frontend/vf_mir_translator/vf_mir_translator.ml b/src/rust_frontend/vf_mir_translator/vf_mir_translator.ml
 index 667069d..0ef368b 100644
 --- a/src/rust_frontend/vf_mir_translator/vf_mir_translator.ml

@@ -10,6 +10,11 @@ lengths, and symbolic `N`. They do not allocate bounded backing arrays or
 enumerate element types. Shared elements use `T.share`, including for interior
 mutable types.
 
+Slice data pointers explicitly discard length metadata. The validity predicate
+records Rust's nonnegative layout sizes, including zero-sized types, and the
+shared-reference ownership bridge accepts unsized pointees. A rejection case
+checks that bounds alone cannot manufacture shared element ownership.
+
 The sharing regression splits a symbolic-length slice by induction over its
 element-sharing predicate. Rejection cases attempt to manufacture a borrow
 without memory or without ownership of its initialized elements. They must

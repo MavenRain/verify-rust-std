@@ -6,7 +6,7 @@ lem share_twice<'a, T>(p: &'a [T], t: thread_id_t)
 {
     close slice_share::<T>('a, t, p);
     leak slice_share::<T>('a, t, p);
-    close_ref_own::<[T]>(p);
-    close_ref_own::<[T]>(p);
+    close_ref_own::<'a, [T]>(p);
+    close_ref_own::<'a, [T]>(p);
 }
 @*/
