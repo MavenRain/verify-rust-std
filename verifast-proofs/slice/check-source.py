@@ -22,8 +22,16 @@ for relative_path, signature in (
         "pub const fn first_chunk<const N: usize>(&self) -> Option<&[T; N]>",
     ),
     (
+        "library/core/src/slice/mod.rs",
+        "pub const fn first_chunk_mut<const N: usize>(&mut self) -> Option<&mut [T; N]>",
+    ),
+    (
         "library/core/src/ptr/const_ptr.rs",
         "pub const fn cast_array<const N: usize>(self) -> *const [T; N]",
+    ),
+    (
+        "library/core/src/ptr/mut_ptr.rs",
+        "pub const fn cast_array<const N: usize>(self) -> *mut [T; N]",
     ),
 ):
     source = (repo_dir / relative_path).read_text()

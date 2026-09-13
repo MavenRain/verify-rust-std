@@ -35,7 +35,7 @@ verification_failed=0
 for test_file in "$proof_dir"/tests/*.rs; do
     test_name=$(basename -- "$test_file" .rs)
     test_log="$proof_dir/results/$test_name.log"
-    if timeout 60 bin/verifast -prover Redux \
+    if timeout 60 bin/verifast -prover Redux -check_raw_mut_ref_creation \
         -rustc_arg --crate-type=lib -rustc_arg -Zthreads=1 \
         "$test_file" >"$test_log" 2>&1; then
         verification_status=0
@@ -44,6 +44,19 @@ for test_file in "$proof_dir"/tests/*.rs; do
     fi
     cat "$test_log"
     case "$test_name:$verification_status" in
+        unsupported_raw_mut_slice:1)
+            test_output=$(<"$test_log")
+            if [[ "$test_output" == *'error: Checked raw mutable references to unsized pointees are not yet supported'* ]]; then
+                echo 'PASS: unsupported raw mutable slice reference rejected'
+            else
+                echo 'FAIL: raw mutable slice did not reach the expected unsupported check'
+                verification_failed=1
+            fi
+            ;;
+        unsupported_raw_mut_slice:*)
+            echo "FAIL: raw mutable slice returned $verification_status (expected explicit rejection)"
+            verification_failed=1
+            ;;
         reject_*:1)
             test_output=$(<"$test_log")
             if [[ "$test_output" == *'error: No matching heap chunks:'* ]]; then
@@ -64,13 +77,13 @@ for test_file in "$proof_dir"/tests/*.rs; do
             ;;
     esac
 done
-implementation_log="$proof_dir/results/first_chunk.log"
-if timeout 60 bin/verifast -prover Redux \
+implementation_log="$proof_dir/results/first_chunks.log"
+if timeout 60 bin/verifast -prover Redux -check_raw_mut_ref_creation \
     -rustc_arg --crate-type=lib -rustc_arg -Zthreads=1 \
     "$proof_dir/implementations/verified/lib.rs" >"$implementation_log" 2>&1; then
-    echo 'PASS: first_chunk implementation'
+    echo 'PASS: first_chunk and first_chunk_mut implementations'
 else
-    echo 'FAIL: first_chunk implementation'
+    echo 'FAIL: first_chunk and first_chunk_mut implementations'
     verification_failed=1
 fi
 cat "$implementation_log"
