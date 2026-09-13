@@ -10,6 +10,11 @@ lengths, and symbolic `N`. They do not allocate bounded backing arrays or
 enumerate element types. Shared elements use `T.share`, including for interior
 mutable types.
 
+The sharing regression splits a symbolic-length slice by induction over its
+element-sharing predicate. Rejection cases attempt to manufacture a borrow
+without memory or without ownership of its initialized elements. They must
+reach a missing-ownership error; a timeout or an unsupported feature fails CI.
+
 The compiler build runs only on a GitHub-hosted Linux runner. The build script
 refuses local execution. It uses two build workers and a workflow timeout.
 Verification does not enable assumptions, skip unspecified functions, ignore

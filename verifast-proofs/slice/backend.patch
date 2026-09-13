@@ -1,5 +1,5 @@
 diff --git a/bin/rust/rust_belt/general.rsspec b/bin/rust/rust_belt/general.rsspec
-index dff404f..83ea025 100644
+index dff404f..5305f97 100644
 --- a/bin/rust/rust_belt/general.rsspec
 +++ b/bin/rust/rust_belt/general.rsspec
 @@ -172,0 +173,36 @@ type_pred_def for<T> <[T]>.own = slice_own::<T>;
@@ -13,7 +13,7 @@ index dff404f..83ea025 100644
 +    if n == 0 {
 +        true
 +    } else {
-+        [_](<T>.share)(k, t, p) &*& slice_elements_share(k, t, p + 1, n - 1)
++        [_](<T>.share)(k, t, p) &*& [_]slice_elements_share(k, t, p + 1, n - 1)
 +    };
 +
 +fix slice_ref_valid<T>(p: *T, n: usize) -> bool {
@@ -40,7 +40,7 @@ index dff404f..83ea025 100644
 +type_pred_def for<T, N> <[T; N]>.share = array_share::<T, N>;
 +
 diff --git a/src/rust_frontend/vf_mir_translator/vf_mir_translator.ml b/src/rust_frontend/vf_mir_translator/vf_mir_translator.ml
-index 667069d..1df7eb5 100644
+index 667069d..71f63bf 100644
 --- a/src/rust_frontend/vf_mir_translator/vf_mir_translator.ml
 +++ b/src/rust_frontend/vf_mir_translator/vf_mir_translator.ml
 @@ -1217 +1217,28 @@ module Make (Args : VF_MIR_TRANSLATOR_ARGS) = struct
@@ -75,7 +75,9 @@ index 667069d..1df7eb5 100644
 +      Ok (Sep (loc, valid, borrow))
 @@ -1249,0 +1277 @@ module Make (Args : VF_MIR_TRANSLATOR_ARGS) = struct
 +        | Param param -> Ast.IdentTypeExpr (loc, None, param.name)
-@@ -1644 +1672,6 @@ module Make (Args : VF_MIR_TRANSLATOR_ARGS) = struct
+@@ -1641,0 +1670 @@ module Make (Args : VF_MIR_TRANSLATOR_ARGS) = struct
++    let open Ast in
+@@ -1644 +1673,6 @@ module Make (Args : VF_MIR_TRANSLATOR_ARGS) = struct
 -    | Param _ -> Ast.static_error loc "Todo: ConstKind::Param" None
 +    | Param param ->
 +        Ok
@@ -83,7 +85,9 @@ index 667069d..1df7eb5 100644
 +             (loc, "usize_of_const", [], [],
 +              [LitPat (Typeid (loc, TypeExpr (IdentTypeExpr (loc, None, param.name))))],
 +              Static))
-@@ -1669,2 +1702,8 @@ module Make (Args : VF_MIR_TRANSLATOR_ARGS) = struct
+@@ -1664,0 +1699 @@ module Make (Args : VF_MIR_TRANSLATOR_ARGS) = struct
++    let open Ast in
+@@ -1669,2 +1704,8 @@ module Make (Args : VF_MIR_TRANSLATOR_ARGS) = struct
 -    let* (CastExpr (_, _, IntLit (_, len, _, _, _))) =
 -      translate_ty_const len_cpn loc
 +    let* len_ty =
@@ -94,24 +98,24 @@ index 667069d..1df7eb5 100644
 +            translate_ty_const len_cpn loc
 +          in
 +          Ok (LiteralConstTypeExpr (loc, Big_int.int_of_big_int len))
-@@ -1673,2 +1712 @@ module Make (Args : VF_MIR_TRANSLATOR_ARGS) = struct
+@@ -1673,2 +1714 @@ module Make (Args : VF_MIR_TRANSLATOR_ARGS) = struct
 -      Ast.StaticArrayTypeExpr
 -        (loc, elem_ty, LiteralConstTypeExpr (loc, Big_int.int_of_big_int len))
 +      Ast.StaticArrayTypeExpr (loc, elem_ty, len_ty)
-@@ -1678 +1716,4 @@ module Make (Args : VF_MIR_TRANSLATOR_ARGS) = struct
+@@ -1678 +1718,4 @@ module Make (Args : VF_MIR_TRANSLATOR_ARGS) = struct
 -      Error "Expressing ownership of an array is not yet supported"
 +      Ok
 +        (CallExpr
 +           (loc, "array_own", [elem_ty; len_ty], [],
 +            [LitPat tid; LitPat vs], PredCtorCall))
-@@ -1681,2 +1722,4 @@ module Make (Args : VF_MIR_TRANSLATOR_ARGS) = struct
+@@ -1681,2 +1724,4 @@ module Make (Args : VF_MIR_TRANSLATOR_ARGS) = struct
 -      Error
 -        "Expressing the full borrow content of an array is not yet supported"
 +      Ok
 +        (CallExpr
 +           (loc, "array_full_borrow_content", [elem_ty; len_ty], [],
 +            [LitPat t; LitPat l], Static))
-@@ -1695,3 +1738,6 @@ module Make (Args : VF_MIR_TRANSLATOR_ARGS) = struct
+@@ -1695,3 +1740,6 @@ module Make (Args : VF_MIR_TRANSLATOR_ARGS) = struct
 -              Error
 -                "Expressing the shared ownership of an array is not yet \
 -                 supported");
