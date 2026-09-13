@@ -63,10 +63,21 @@ index dff404f..6ac9f83 100644
 -lem close_ref_own<'a, T>(l: &'a T);
 +lem close_ref_own<'a, T: ?Sized>(l: &'a T);
 diff --git a/src/refinement_checker/refinement_checker.ml b/src/refinement_checker/refinement_checker.ml
-index 78a4a6d..897ec52 100644
+index 78a4a6d..039e646 100644
 --- a/src/refinement_checker/refinement_checker.ml
 +++ b/src/refinement_checker/refinement_checker.ml
-@@ -2341,0 +2342,13 @@ let check_body_refines_body bodies0 bodies1 def_path body0 body1 =
+@@ -322,0 +323 @@ type term =
++| ConstParamTerm of string
+@@ -337,0 +339 @@ let rec string_of_term = function
++| ConstParamTerm name -> Printf.sprintf "ConstParamTerm %s" name
+@@ -365 +367,5 @@ let eval_mir_const genv mir_const_cpn =
+-    Ty mir_ty_const_cpn -> failwith "Using typesystem constant expressions as MIR constant operands is not yet supported"
++    Ty mir_ty_const_cpn ->
++      begin match decode_const_expr genv mir_ty_const_cpn.const with
++      | ParamConstExpr name -> ConstParamTerm name
++      | LiteralConstExpr value -> ScalarInt value
++      end
+@@ -2341,0 +2348,13 @@ let check_body_refines_body bodies0 bodies1 def_path body0 body1 =
 +  let const_predicates genv preds =
 +    List.filter_map (function
 +      | ConstArgHasType pred -> Some (decode_const_expr genv pred.constant, decode_ty genv pred.ty)
@@ -104,7 +115,7 @@ index 89d9b96..e3ca01c 100644
 +                    Self::encode_ty(enc_ctx.tcx, enc_ctx, ty, const_cpn.init_ty());
 +                }
 diff --git a/src/rust_frontend/vf_mir_translator/vf_mir_translator.ml b/src/rust_frontend/vf_mir_translator/vf_mir_translator.ml
-index 667069d..8bff946 100644
+index 667069d..2aae3de 100644
 --- a/src/rust_frontend/vf_mir_translator/vf_mir_translator.ml
 +++ b/src/rust_frontend/vf_mir_translator/vf_mir_translator.ml
 @@ -1217 +1217,28 @@ module Make (Args : VF_MIR_TRANSLATOR_ARGS) = struct
@@ -205,7 +216,7 @@ index 667069d..8bff946 100644
 +                    Ok (Some (ExprAsn (fn_sig_loc,
 +                      Operation (fn_sig_loc, And, [
 +                        Operation (fn_sig_loc, Le, [zero; value]);
-+                        Operation (fn_sig_loc, Le, [value; Var (fn_sig_loc, "usize::MAX")])
++                        Operation (fn_sig_loc, Le, [value; Operation (fn_sig_loc, MaxValue (Int (Unsigned, PtrRank)), [])])
 +                      ]))))
 +                  else Error (`TrBodyFailed (fn_sig_loc, "Only usize const parameters are supported"))
 +              | `Outlives _ | `Trait _ | `Projection _ | `Ignored -> Ok None)

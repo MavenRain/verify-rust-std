@@ -86,7 +86,7 @@ else
 fi
 cat "$refinement_log"
 
-for fixture in verified wrong_type; do
+for fixture in verified wrong_type wrong_value; do
     fixture_log="$proof_dir/results/refinement_$fixture.log"
     if timeout 60 bin/refinement-checker --rustc-args '--crate-type=lib -Zthreads=1' \
         "$proof_dir/tests/refinement/original.rs" \
@@ -107,10 +107,32 @@ for fixture in verified wrong_type; do
                 verification_failed=1
             fi
             ;;
+        wrong_value:1)
+            fixture_output=$(<"$fixture_log")
+            if [[ "$fixture_output" == *'the return values'*'are not equal'* ]]; then
+                echo 'PASS: changed const-argument value rejected'
+            else
+                echo 'FAIL: changed const value did not reach the expected refinement check'
+                verification_failed=1
+            fi
+            ;;
         *)
             echo "FAIL: refinement fixture $fixture returned $fixture_status"
             verification_failed=1
             ;;
     esac
 done
+
+upstream_log="$proof_dir/results/upstream_refinement.log"
+if make -C src -j2 ../bin/mysh >"$upstream_log" 2>&1 && (
+    cd tests/rust/refinement_checker
+    export PATH="$backend_dir/bin:$PATH"
+    timeout 300 "$backend_dir/bin/mysh" -cpus 2 < testsuite.mysh
+) >>"$upstream_log" 2>&1; then
+    echo 'PASS: upstream refinement suite'
+else
+    echo 'FAIL: upstream refinement suite'
+    verification_failed=1
+fi
+cat "$upstream_log"
 exit "$verification_failed"

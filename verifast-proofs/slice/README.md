@@ -54,3 +54,10 @@ Required follow-up before claiming challenge coverage:
 
 The tests in this directory exercise the backend. They are not substitutes for
 proofs of the standard-library implementations.
+
+VeriFast 26.01 also documents incomplete checks for Rust's mutable-reference
+creation, aliasing, and function-call reference protection in
+[`tests/rust/README.md`](https://github.com/verifast/verifast/blob/dcfad5bd4c147117bc1dfd9ede0298c6de60fed0/tests/rust/README.md).
+The new slice ownership predicates do not establish conformance to all of
+Rust's aliasing rules. This limitation must be addressed when assessing the
+challenge's undefined-behavior coverage, especially for mutable operations.
