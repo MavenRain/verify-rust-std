@@ -24,21 +24,29 @@ fields must be owned before the pair can be packaged. This library specification
 is part of the trusted model and has a missing-field-ownership rejection test.
 
 The sharing regression splits a symbolic-length slice by induction over its
-element-sharing predicate. Rejection cases attempt to manufacture a borrow
+element-sharing predicate. A second inductive lemma preserves validity when
+taking a suffix, including its alignment and pointer limits. It uses the
+existing Rust layout model and applies to zero-sized element types.
+Rejection cases attempt to manufacture a borrow
 without memory or without ownership of its initialized elements. They must
 reach a missing-ownership error; a timeout or an unsupported feature fails CI.
 
 The compiler build runs only on a GitHub-hosted Linux runner. The build script
 refuses local execution. Cargo and Make use two workers, and the workflow has a
 timeout.
-Verification does not enable assumptions, skip unspecified functions, ignore
-reference creation, or ignore unwind paths.
+The new proofs do not enable assumptions, skip unspecified functions, ignore
+reference creation, or ignore unwind paths. CI also runs the upstream Rust and
+refinement regression suites with their existing test options and two workers.
 
 The first implementation under development is `first_chunk`, together with its
 `cast_array` helper. CI compares both original method bodies with the standard
 library checkout and runs the existing MIR refinement checker between the
 original and annotated copies. This implementation is not counted as proved
 until its verification passes.
+Both copies include the same proof-only module; its contents are ghost code.
+The annotated `cast_array` contract requires pointer preservation and no
+unwinding; CI checks its body against that contract. `first_chunk` packages
+result ownership after the Rust expression has evaluated.
 
 `backend.patch` applies to the pinned source. `apply-array-value-fix.py` applies
 the array-local change with an exact byte preimage because those upstream lines

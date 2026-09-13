@@ -14,20 +14,25 @@ impl<T> [T] {
             //@ assert [_]slice_elements_share('a, _t, ?data, ?length);
             //@ lemmas::split_shared_elements('a, _t, data, length, usize_of_const(typeid(N)));
             //@ lemmas::slice_prefix_valid(data, length, usize_of_const(typeid(N)));
-            //@ let array = data as &'a [T; N];
+            // SAFETY: We explicitly check for the correct number of elements,
+            //   and do not let the reference outlive the slice.
+            let array = unsafe { &*(self.as_ptr().cast_array()) };
+            let result = Some(array);
             //@ close array_share::<T, N>('a, _t, array);
             //@ leak array_share::<T, N>('a, _t, array);
             //@ close_ref_own::<'a, [T; N]>(array);
             //@ close std::option::Option_own::<&'a [T; N]>(_t, std::option::Option::Some(array));
-            // SAFETY: We explicitly check for the correct number of elements,
-            //   and do not let the reference outlive the slice.
-            Some(unsafe { &*(self.as_ptr().cast_array()) })
+            result
         }
     }
 }
 
 impl<T> *const T {
-    pub const fn cast_array<const N: usize>(self) -> *const [T; N] {
+    pub const fn cast_array<const N: usize>(self) -> *const [T; N]
+//@ req true;
+    //@ ens result == self as *const [T; N];
+    //@ on_unwind_ens false;
+    {
         self.cast()
     }
 }

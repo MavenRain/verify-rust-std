@@ -2,6 +2,9 @@
 #![rustc_coherence_is_core]
 #![allow(internal_features)]
 
+#[path = "../../lemmas.rs"]
+mod lemmas;
+
 impl<T> [T] {
     pub const fn first_chunk<const N: usize>(&self) -> Option<&[T; N]> {
         if self.len() < N {

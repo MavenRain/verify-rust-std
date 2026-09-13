@@ -135,4 +135,18 @@ else
     verification_failed=1
 fi
 cat "$upstream_log"
+
+upstream_rust_log="$proof_dir/results/upstream_rust.log"
+if make -C src -j2 ../bin/rustc-verifast >"$upstream_rust_log" 2>&1 &&
+    make -C src -j2 ../bin/cargo-verifast >>"$upstream_rust_log" 2>&1 && (
+    cd tests/rust
+    export PATH="$backend_dir/bin:$PATH"
+    timeout 900 "$backend_dir/bin/mysh" -cpus 2 < testsuite.mysh
+) >>"$upstream_rust_log" 2>&1; then
+    echo 'PASS: upstream Rust suite'
+else
+    echo 'FAIL: upstream Rust suite'
+    verification_failed=1
+fi
+cat "$upstream_rust_log"
 exit "$verification_failed"
