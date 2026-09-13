@@ -197,7 +197,7 @@ index 667069d..8bff946 100644
 +        let* const_type_asns =
 +          ListAux.try_filter_map
 +            (function
-+              | `ConstArgHasType pred ->
++              | `ConstArgHasType (pred : D.predicate_const_arg_has_type) ->
 +                  let open Ast in
 +                  if pred.D.ty.kind = D.UInt D.USize then
 +                    let* value = translate_ty_const pred.constant fn_sig_loc in
