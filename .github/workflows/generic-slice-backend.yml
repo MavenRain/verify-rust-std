@@ -1,0 +1,38 @@
+name: Generic slice backend
+
+on:
+  push:
+    branches: [fix/603-unbounded-review]
+    paths:
+      - .github/workflows/generic-slice-backend.yml
+      - verifast-proofs/slice/**
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: generic-slice-backend-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: verifast-proofs/slice
+      - uses: actions/checkout@v4
+        with:
+          repository: verifast/verifast
+          ref: dcfad5bd4c147117bc1dfd9ede0298c6de60fed0 # VeriFast 26.01
+          path: .verifast
+      - name: Build and check generic ownership
+        run: bash verifast-proofs/slice/build-backend.sh .verifast
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: generic-slice-results
+          path: verifast-proofs/slice/results
+          if-no-files-found: ignore

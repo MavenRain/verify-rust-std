@@ -5568,8 +5568,10 @@ mod verify {
 
     // ---- Challenge 17: O(1) unsafe split/swap fns ----
     // These are bounds-geometry proofs (no element-value dependence and no loop),
-    // so they need no `#[kani::unwind]`; the symbolic-length sub-slice over a fixed
-    // backing array is the accepted "unbounded" encoding.
+    // so they need no `#[kani::unwind]`. Their symbolic slice lengths are still
+    // bounded by the backing array, and each element type is a monomorphization.
+    // This encoding does not establish the challenge's requirements for
+    // unbounded slice lengths or generic `T`.
 
     macro_rules! check_split_at_unchecked {
         ($harness:ident, $ty:ty) => {

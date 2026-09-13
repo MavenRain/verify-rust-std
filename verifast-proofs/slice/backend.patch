@@ -1,0 +1,72 @@
+diff --git a/bin/rust/rust_belt/general.rsspec b/bin/rust/rust_belt/general.rsspec
+index dff404f..0952a9c 100644
+--- a/bin/rust/rust_belt/general.rsspec
++++ b/bin/rust/rust_belt/general.rsspec
+@@ -170,6 +170,27 @@ pred_ctor slice_own<T>()(t: thread_id_t, v: [T]) = foreach(slice_elems(v), (own)
+
+ type_pred_def for<T> <[T]>.own = slice_own::<T>;
+
++// A slice borrow retains the ownership of every initialized element.
++pred_ctor slice_full_borrow_content<T>(t: thread_id_t, p: *T, n: usize)(;) =
++    p[..n] |-> ?values &*& foreach(values, (own)(t));
++
++// T's sharing predicate also describes types with interior mutability.
++pred slice_elements_share<T>(k: lifetime_t, t: thread_id_t, p: *T, n: usize) =
++    0 <= n &*&
++    if n == 0 {
++        true
++    } else {
++        [_](<T>.share)(k, t, p) &*& slice_elements_share(k, t, p + 1, n - 1)
++    };
++
++fix slice_ref_valid<T>(p: *T, n: usize) -> bool {
++    p != 0 &&
++    p as usize % std::mem::align_of::<T>() == 0 &&
++    0 <= n && n <= usize::MAX &&
++    n * std::mem::size_of::<T>() <= isize::MAX &&
++    pointer_within_limits(p) && pointer_within_limits(p + n)
++}
++
+ type_pred_def <bool>.full_borrow_content = bool_full_borrow_content;
+ type_pred_def <*_>.full_borrow_content = raw_ptr_full_borrow_content;
+
+diff --git a/src/rust_frontend/vf_mir_translator/vf_mir_translator.ml b/src/rust_frontend/vf_mir_translator/vf_mir_translator.ml
+index 667069d..b7f0798 100644
+--- a/src/rust_frontend/vf_mir_translator/vf_mir_translator.ml
++++ b/src/rust_frontend/vf_mir_translator/vf_mir_translator.ml
+@@ -1214,7 +1214,34 @@ module Make (Args : VF_MIR_TRANSLATOR_ARGS) = struct
+     in
+     let size = SizeofExpr (loc, TypeExpr vf_ty) in
+     let own tid vs =
+-      Error "Expressing ownership of &[_] values is not yet supported"
++      let elem_ty = elem_ty_info.Mir.vf_ty in
++      let ptr = CastExpr (loc, PtrTypeExpr (loc, elem_ty), vs) in
++      let len = CallExpr (loc, "ptr_len", [], [], [LitPat vs], Static) in
++      let valid =
++        CallExpr
++          (loc, "slice_ref_valid", [elem_ty], [],
++           [LitPat ptr; LitPat len], Static)
++      in
++      let lifetime = Rust_parser.expr_of_lft_param_expr loc lft in
++      let borrow =
++        match mut with
++        | Shared ->
++            CoefAsn
++              (loc, DummyPat,
++               CallExpr
++                 (loc, "slice_elements_share", [elem_ty], [],
++                  [LitPat lifetime; LitPat tid; LitPat ptr; LitPat len], Static))
++        | Mutable ->
++            let content =
++              CallExpr
++                (loc, "slice_full_borrow_content", [elem_ty], [],
++                 [LitPat tid; LitPat ptr; LitPat len], Static)
++            in
++            CallExpr
++              (loc, "full_borrow", [], [],
++               [LitPat lifetime; LitPat content], Static)
++      in
++      Ok (Sep (loc, valid, borrow))
+     in
+     let shr lft tid l =
+       Error "Expressing shared ownership of &[_] values is not yet supported"
