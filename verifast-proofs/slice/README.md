@@ -31,6 +31,10 @@ Owned splitting and joining lemmas preserve every element's ownership, and
 conversion lemmas reuse the existing memory rules for arrays. The trusted value
 model adds a round-trip rule for `Array_of_elems` guarded by exact length equality.
 A rejection test attempts conversion from too few elements.
+Array conversion also requires a non-null pointer: an empty element region
+alone cannot justify the array storage predicate, which implies non-nullness.
+A rejection test guards against deriving a contradiction from empty storage
+at null, and a positive test round-trips an empty array at a non-null pointer.
 The array-alignment rule follows the [Rust Reference's array layout guarantee](https://doc.rust-lang.org/reference/type-layout.html#array-layout),
 including empty arrays. This rule is also part of the trusted model.
 Rejection cases attempt to manufacture a borrow
@@ -47,8 +51,9 @@ All backend tests and challenge proofs enable `-check_raw_mut_ref_creation`.
 The pinned frontend otherwise skips mutable-reference creation automatically.
 The new mode routes creation from non-reference places through `create_ref_mut`,
 which requires full initialized storage, non-nullness and alignment, and returns
-a restoration token while preserving the address. Null and misaligned array
-references are rejected even when the storage predicate is available.
+a restoration token while preserving the address. A null-pointer regression
+uses an empty array without assuming storage at null. The misaligned-array
+regression supplies storage and must still fail the alignment check.
 It rejects raw mutable references to unsized pointees until those checks are
 implemented. Regressions require rejection without storage or with only a
 fraction of the required ownership.

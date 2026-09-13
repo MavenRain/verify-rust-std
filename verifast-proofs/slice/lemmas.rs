@@ -27,7 +27,7 @@ lem join_owned_elements<T>(t: thread_id_t, p: *T, n: usize, mid: usize)
 }
 
 lem slice_to_owned_array<T, N>(t: thread_id_t, p: *T)
-    req slice_full_borrow_content::<T>(t, p, usize_of_const(typeid(N)))();
+    req p != 0 &*& slice_full_borrow_content::<T>(t, p, usize_of_const(typeid(N)))();
     ens array_full_borrow_content::<T, N>(t, p as *[T; N])();
 {
     open slice_full_borrow_content::<T>(t, p, usize_of_const(typeid(N)))();

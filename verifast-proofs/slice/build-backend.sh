@@ -44,6 +44,15 @@ for test_file in "$proof_dir"/tests/*.rs; do
     fi
     cat "$test_log"
     case "$test_name:$verification_status" in
+        reject_null_array_storage:1)
+            test_output=$(<"$test_log")
+            if [[ "$test_output" == *'prelude_core.rsspec('*'error: Cannot prove condition.'* ]]; then
+                echo 'PASS: null array storage rejected before inconsistent conversion'
+            else
+                echo 'FAIL: null array storage did not reach the conversion guard'
+                verification_failed=1
+            fi
+            ;;
         reject_null_array_ref:1|reject_misaligned_array_ref:1)
             test_output=$(<"$test_log")
             if [[ "$test_output" == *'aliasing.rsspec('*'error: Cannot prove condition.'* ]]; then

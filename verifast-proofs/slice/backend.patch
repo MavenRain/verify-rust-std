@@ -1,11 +1,11 @@
 diff --git a/bin/rust/aliasing.rsspec b/bin/rust/aliasing.rsspec
-index 141615d..b1e2656 100644
+index 141615d..4228e43 100644
 --- a/bin/rust/aliasing.rsspec
 +++ b/bin/rust/aliasing.rsspec
 @@ -56,2 +56,2 @@ fn create_ref_mut<T>(x: *T) -> *T;
 -//@ req *x |-> ?v;
 -//@ ens *result |-> v &*& ref_mut_end_token(result, x);
-+//@ req *x |-> ?v &*& x != 0 &*& x as usize % std::mem::align_of::<T>() == 0;
++//@ req x != 0 &*& x as usize % std::mem::align_of::<T>() == 0 &*& *x |-> ?v;
 +//@ ens *result |-> v &*& ref_mut_end_token(result, x) &*& result != 0 &*& result as usize == x as usize &*& result as usize % std::mem::align_of::<T>() == 0;
 diff --git a/bin/rust/prelude.rsspec b/bin/rust/prelude.rsspec
 index e7e07fe..0093378 100644
@@ -17,7 +17,7 @@ index e7e07fe..0093378 100644
 +    ens <(T1, T2)>.own(t, v);
 +
 diff --git a/bin/rust/prelude_core.rsspec b/bin/rust/prelude_core.rsspec
-index 992cade..b6144be 100644
+index 992cade..a50e14b 100644
 --- a/bin/rust/prelude_core.rsspec
 +++ b/bin/rust/prelude_core.rsspec
 @@ -303,0 +304,11 @@ fix Array_of_elems<T, N>(elems: list<T>) -> [T; N];
@@ -32,6 +32,9 @@ index 992cade..b6144be 100644
 +        usize_of_const(typeid(N)) * std::mem::size_of::<T>() <= isize::MAX;
 +    ens std::mem::align_of::<[T; N]>() == std::mem::align_of::<T>();
 +
+@@ -324 +335 @@ lem array_to_Array<T, N>(p: *[T; N]);
+-    req [?f](p as *T)[..usize_of_const(typeid(N))] |-> ?elems;
++    req p != 0 &*& [?f](p as *T)[..usize_of_const(typeid(N))] |-> ?elems;
 diff --git a/bin/rust/rust_belt/general.rsspec b/bin/rust/rust_belt/general.rsspec
 index dff404f..6ac9f83 100644
 --- a/bin/rust/rust_belt/general.rsspec
@@ -152,7 +155,7 @@ index 89d9b96..e3ca01c 100644
 +                    Self::encode_ty(enc_ctx.tcx, enc_ctx, ty, const_cpn.init_ty());
 +                }
 diff --git a/src/rust_frontend/vf_mir_translator/vf_mir_translator.ml b/src/rust_frontend/vf_mir_translator/vf_mir_translator.ml
-index 667069d..c6918ee 100644
+index 667069d..1544d3e 100644
 --- a/src/rust_frontend/vf_mir_translator/vf_mir_translator.ml
 +++ b/src/rust_frontend/vf_mir_translator/vf_mir_translator.ml
 @@ -333,0 +334 @@ module type VF_MIR_TRANSLATOR_ARGS = sig
@@ -242,7 +245,11 @@ index 667069d..c6918ee 100644
 @@ -2280 +2329 @@ module Make (Args : VF_MIR_TRANSLATOR_ARGS) = struct
 -            | "std::ptr::mut_ptr::<impl *const T>::cast"
 +            | "std::ptr::const_ptr::<impl *const T>::cast"
-@@ -3004,0 +3054,7 @@ module Make (Args : VF_MIR_TRANSLATOR_ARGS) = struct
+@@ -2419 +2468,2 @@ module Make (Args : VF_MIR_TRANSLATOR_ARGS) = struct
+-            | "std::slice::<impl [T]>::as_ptr" ->
++            | "std::slice::<impl [T]>::as_ptr"
++            | "std::slice::<impl [T]>::as_mut_ptr" ->
+@@ -3004,0 +3055,7 @@ module Make (Args : VF_MIR_TRANSLATOR_ARGS) = struct
 +          let place_kind =
 +            VfMirRd.PlaceKind.get (VfMirRd.Place.kind_get place_cpn)
 +          in
@@ -250,12 +257,12 @@ index 667069d..c6918ee 100644
 +            TranslatorArgs.check_raw_mut_ref_creation
 +            && bor_kind = Mut && place_kind = Other
 +          in
-@@ -3005,0 +3062 @@ module Make (Args : VF_MIR_TRANSLATOR_ARGS) = struct
+@@ -3005,0 +3063 @@ module Make (Args : VF_MIR_TRANSLATOR_ARGS) = struct
 +            not check_raw_mut_ref_creation && (
-@@ -3033 +3090 @@ module Make (Args : VF_MIR_TRANSLATOR_ARGS) = struct
+@@ -3033 +3091 @@ module Make (Args : VF_MIR_TRANSLATOR_ARGS) = struct
 -              | [] -> false
 +              | [] -> false)
-@@ -3041,3 +3098,12 @@ module Make (Args : VF_MIR_TRANSLATOR_ARGS) = struct
+@@ -3041,3 +3099,12 @@ module Make (Args : VF_MIR_TRANSLATOR_ARGS) = struct
 -            let is_implicit = is_implicit_get ref_data_cpn in
 -            let place_kind =
 -              VfMirRd.PlaceKind.get (VfMirRd.Place.kind_get place_cpn)
@@ -271,13 +278,13 @@ index 667069d..c6918ee 100644
 +                | `Tuple _ | `Ref _ | `RawPtr | `Array | `Adt _
 +                | `Param _ | `FnDef _ | `FnPtr | `Closure | `CoroutineClosure
 +                | `Coroutine | `CoroutineWitness -> ()
-@@ -3044,0 +3111 @@ module Make (Args : VF_MIR_TRANSLATOR_ARGS) = struct
+@@ -3044,0 +3112 @@ module Make (Args : VF_MIR_TRANSLATOR_ARGS) = struct
 +            let is_implicit = is_implicit_get ref_data_cpn in
-@@ -4599 +4666,2 @@ module Make (Args : VF_MIR_TRANSLATOR_ARGS) = struct
+@@ -4599 +4667,2 @@ module Make (Args : VF_MIR_TRANSLATOR_ARGS) = struct
 -    | _ -> `Ignored
 +    | ConstArgHasType pred -> `ConstArgHasType pred
 +    | Ignored -> `Ignored
-@@ -4791,0 +4860,17 @@ module Make (Args : VF_MIR_TRANSLATOR_ARGS) = struct
+@@ -4791,0 +4861,17 @@ module Make (Args : VF_MIR_TRANSLATOR_ARGS) = struct
 +        let* const_type_asns =
 +          ListAux.try_filter_map
 +            (function
@@ -295,7 +302,7 @@ index 667069d..c6918ee 100644
 +              | `Outlives _ | `Trait _ | `Projection _ | `Ignored -> Ok None)
 +            preds
 +        in
-@@ -4947,0 +5033,2 @@ module Make (Args : VF_MIR_TRANSLATOR_ARGS) = struct
+@@ -4947,0 +5034,2 @@ module Make (Args : VF_MIR_TRANSLATOR_ARGS) = struct
 +          let pre_post = Option.map (fun (pre, post) ->
 +            (List.fold_right (fun asn pre -> Ast.Sep (fn_sig_loc, asn, pre)) const_type_asns pre, post)) pre_post in
 diff --git a/src/verifast1.ml b/src/verifast1.ml

@@ -1,6 +1,6 @@
 /*@
 lem reject_short_array<T, N>(t: thread_id_t, p: *T, n: usize)
-    req p[..n] |-> ?values &*& foreach(values, (own)(t)) &*&
+    req p != 0 &*& p[..n] |-> ?values &*& foreach(values, (own)(t)) &*&
         0 <= n &*& n < usize_of_const(typeid(N));
     ens array_full_borrow_content::<T, N>(t, p as *[T; N])();
 {
