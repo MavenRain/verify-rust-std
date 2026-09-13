@@ -16,9 +16,20 @@ without memory or without ownership of its initialized elements. They must
 reach a missing-ownership error; a timeout or an unsupported feature fails CI.
 
 The compiler build runs only on a GitHub-hosted Linux runner. The build script
-refuses local execution. It uses two build workers and a workflow timeout.
+refuses local execution. Cargo and Make use two workers, and the workflow has a
+timeout.
 Verification does not enable assumptions, skip unspecified functions, ignore
 reference creation, or ignore unwind paths.
+
+The first implementation under development is `first_chunk`, together with its
+`cast_array` helper. CI compares both original method bodies with the standard
+library checkout and runs the existing MIR refinement checker between the
+original and annotated copies. This implementation is not counted as proved
+until its verification passes.
+
+`backend.patch` applies to the pinned source. `apply-array-value-fix.py` applies
+the array-local change with an exact byte preimage because those upstream lines
+use CRLF endings. The repository's whitespace checks remain enabled.
 
 Required follow-up before claiming challenge coverage:
 

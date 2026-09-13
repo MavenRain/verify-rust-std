@@ -1,2 +1,0 @@
-# Removed lines in the upstream patch retain their original trailing spaces.
-backend.patch whitespace=-blank-at-eol

@@ -8,6 +8,7 @@ fi
 
 backend_dir=$(cd -- "${1:?expected VeriFast checkout}" && pwd)
 proof_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+python3 -I "$proof_dir/check-source.py"
 export CARGO_BUILD_JOBS=2
 export MAKEFLAGS=-j2
 
@@ -19,6 +20,7 @@ fi
 git -C "$backend_dir" diff HEAD --exit-code
 git -C "$backend_dir" apply --unidiff-zero --check "$proof_dir/backend.patch"
 git -C "$backend_dir" apply --unidiff-zero "$proof_dir/backend.patch"
+python3 -I "$proof_dir/apply-array-value-fix.py" "$backend_dir"
 cd -- "$backend_dir"
 ./setup-build.sh
 source ./config.sh
@@ -26,6 +28,7 @@ export PATH="/tmp/$VFDEPS_NAME/bin:$PATH"
 export LD_LIBRARY_PATH="/tmp/$VFDEPS_NAME/lib:${LD_LIBRARY_PATH:-}"
 make -C src -j2 verifast
 make -C src -j2 ../bin/vf-rust-mir-exporter
+make -C src -j2 ../bin/refinement-checker
 
 mkdir -p -- "$proof_dir/results"
 verification_failed=0
@@ -61,4 +64,25 @@ for test_file in "$proof_dir"/tests/*.rs; do
             ;;
     esac
 done
+implementation_log="$proof_dir/results/first_chunk.log"
+if timeout 60 bin/verifast -prover Redux \
+    -rustc_arg --crate-type=lib -rustc_arg -Zthreads=1 \
+    "$proof_dir/implementations/verified/lib.rs" >"$implementation_log" 2>&1; then
+    echo 'PASS: first_chunk implementation'
+else
+    echo 'FAIL: first_chunk implementation'
+    verification_failed=1
+fi
+cat "$implementation_log"
+
+refinement_log="$proof_dir/results/refinement.log"
+if timeout 60 bin/refinement-checker --rustc-args '--crate-type=lib -Zthreads=1' \
+    "$proof_dir/implementations/original/lib.rs" \
+    "$proof_dir/implementations/verified/lib.rs" >"$refinement_log" 2>&1; then
+    echo 'PASS: implementation refinement'
+else
+    echo 'FAIL: implementation refinement'
+    verification_failed=1
+fi
+cat "$refinement_log"
 exit "$verification_failed"

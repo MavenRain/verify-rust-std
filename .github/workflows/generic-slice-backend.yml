@@ -6,6 +6,8 @@ on:
     paths:
       - .github/workflows/generic-slice-backend.yml
       - verifast-proofs/slice/**
+      - library/core/src/slice/mod.rs
+      - library/core/src/ptr/const_ptr.rs
   workflow_dispatch:
 
 permissions:
@@ -22,7 +24,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          sparse-checkout: verifast-proofs/slice
+          sparse-checkout: |
+            verifast-proofs/slice
+            library/core/src/slice
+            library/core/src/ptr
       - uses: actions/checkout@v4
         with:
           repository: verifast/verifast

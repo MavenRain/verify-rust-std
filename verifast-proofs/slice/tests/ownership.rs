@@ -2,7 +2,11 @@ pub fn shared_identity<T>(value: &[T]) -> &[T] {
     value
 }
 
-pub fn shared_pair<T>(value: &[T]) -> (&[T], &[T]) {
+pub fn shared_pair<'a, T>(value: &'a [T]) -> (&'a [T], &'a [T]) {
+    //@ close slice_share::<T>('a, _t, value);
+    //@ leak slice_share::<T>('a, _t, value);
+    //@ close_ref_own::<[T]>(value);
+    //@ close_ref_own::<[T]>(value);
     (value, value)
 }
 

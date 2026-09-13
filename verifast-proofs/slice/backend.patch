@@ -1,8 +1,8 @@
 diff --git a/bin/rust/rust_belt/general.rsspec b/bin/rust/rust_belt/general.rsspec
-index dff404f..5305f97 100644
+index dff404f..8facffc 100644
 --- a/bin/rust/rust_belt/general.rsspec
 +++ b/bin/rust/rust_belt/general.rsspec
-@@ -172,0 +173,36 @@ type_pred_def for<T> <[T]>.own = slice_own::<T>;
+@@ -172,0 +173,42 @@ type_pred_def for<T> <[T]>.own = slice_own::<T>;
 +// A slice borrow retains the ownership of every initialized element.
 +pred_ctor slice_full_borrow_content<T>(t: thread_id_t, p: *T, n: usize)() =
 +    p[..n] |-> ?values &*& foreach(values, (own)(t));
@@ -23,6 +23,12 @@ index dff404f..5305f97 100644
 +    n * std::mem::size_of::<T>() <= isize::MAX &&
 +    pointer_within_limits(p) && pointer_within_limits(p + n)
 +}
++
++pred_ctor slice_share<T>()(k: lifetime_t, t: thread_id_t, p: *[T]) =
++    slice_ref_valid(p as *T, ptr_len(p)) == true &*&
++    [_]slice_elements_share(k, t, p as *T, ptr_len(p));
++
++type_pred_def for<T> <[T]>.share = slice_share::<T>;
 +
 +pred_ctor array_own<T, N>()(t: thread_id_t, v: [T; N]) =
 +    length(Array_elems(v)) == usize_of_const(typeid(N)) &*&
@@ -125,12 +131,10 @@ index 667069d..0ef368b 100644
 +                    CallExpr
 +                      (loc, "array_share", [elem_ty; len_ty], [],
 +                       [LitPat k; LitPat t; LitPat l], PredCtorCall))));
-diff --git a/src/verifast.ml b/src/verifast.ml
-index d908895..4956df2 100644
---- a/src/verifast.ml
-+++ b/src/verifast.ml
-@@ -1059,2 +1059,2 @@ module VerifyProgram(VerifyProgramArgs: VERIFY_PROGRAM_ARGS) = struct
--            StaticArrayType (elemTp, elemCount) ->
--            produce_object t
-+            StaticArrayType (elemTp, elemCount) when not is_rust || !address_taken ->
-+            produce_object t
+diff --git a/src/verifast1.ml b/src/verifast1.ml
+index 157f63a..0dd548b 100644
+--- a/src/verifast1.ml
++++ b/src/verifast1.ml
+@@ -5552 +5552 @@ module VerifyProgram1(VerifyProgramArgs: VERIFY_PROGRAM_ARGS) = struct
+-              WPureFunCall (expr_loc w, "ptr_cast", [t; t0], [w])
++              WPureFunCall (expr_loc w, "ptr_cast", [pointeeType; pointeeType0], [w])
