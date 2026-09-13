@@ -40,7 +40,7 @@ index dff404f..5305f97 100644
 +type_pred_def for<T, N> <[T; N]>.share = array_share::<T, N>;
 +
 diff --git a/src/rust_frontend/vf_mir_translator/vf_mir_translator.ml b/src/rust_frontend/vf_mir_translator/vf_mir_translator.ml
-index 667069d..71f63bf 100644
+index 667069d..0ef368b 100644
 --- a/src/rust_frontend/vf_mir_translator/vf_mir_translator.ml
 +++ b/src/rust_frontend/vf_mir_translator/vf_mir_translator.ml
 @@ -1217 +1217,28 @@ module Make (Args : VF_MIR_TRANSLATOR_ARGS) = struct
@@ -72,7 +72,7 @@ index 667069d..71f63bf 100644
 +              (loc, "full_borrow", [], [],
 +               [LitPat lifetime; LitPat content], Static)
 +      in
-+      Ok (Sep (loc, valid, borrow))
++      Ok (Sep (loc, ExprAsn (loc, valid), borrow))
 @@ -1249,0 +1277 @@ module Make (Args : VF_MIR_TRANSLATOR_ARGS) = struct
 +        | Param param -> Ast.IdentTypeExpr (loc, None, param.name)
 @@ -1641,0 +1670 @@ module Make (Args : VF_MIR_TRANSLATOR_ARGS) = struct
@@ -125,3 +125,12 @@ index 667069d..71f63bf 100644
 +                    CallExpr
 +                      (loc, "array_share", [elem_ty; len_ty], [],
 +                       [LitPat k; LitPat t; LitPat l], PredCtorCall))));
+diff --git a/src/verifast.ml b/src/verifast.ml
+index d908895..4956df2 100644
+--- a/src/verifast.ml
++++ b/src/verifast.ml
+@@ -1059,2 +1059,2 @@ module VerifyProgram(VerifyProgramArgs: VERIFY_PROGRAM_ARGS) = struct
+-            StaticArrayType (elemTp, elemCount) ->
+-            produce_object t
++            StaticArrayType (elemTp, elemCount) when not is_rust || !address_taken ->
++            produce_object t

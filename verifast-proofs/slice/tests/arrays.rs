@@ -2,6 +2,11 @@ pub fn array_identity<T, const N: usize>(value: [T; N]) -> [T; N] {
     value
 }
 
+pub fn array_local_move<T, const N: usize>(value: [T; N]) -> [T; N] {
+    let moved = value;
+    moved
+}
+
 pub fn array_shared_identity<T, const N: usize>(value: &[T; N]) -> &[T; N] {
     value
 }
