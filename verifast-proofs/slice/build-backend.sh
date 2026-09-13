@@ -11,8 +11,14 @@ proof_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 export CARGO_BUILD_JOBS=2
 export MAKEFLAGS=-j2
 
-git -C "$backend_dir" apply --check "$proof_dir/backend.patch"
-git -C "$backend_dir" apply "$proof_dir/backend.patch"
+expected_revision=dcfad5bd4c147117bc1dfd9ede0298c6de60fed0
+if [[ "$(git -C "$backend_dir" rev-parse HEAD)" != "$expected_revision" ]]; then
+    echo 'The backend patch requires the pinned VeriFast 26.01 revision.' >&2
+    exit 2
+fi
+git -C "$backend_dir" diff --exit-code
+git -C "$backend_dir" apply --unidiff-zero --check "$proof_dir/backend.patch"
+git -C "$backend_dir" apply --unidiff-zero "$proof_dir/backend.patch"
 cd -- "$backend_dir"
 ./setup-build.sh
 source ./config.sh

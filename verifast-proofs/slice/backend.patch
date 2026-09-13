@@ -1,13 +1,10 @@
 diff --git a/bin/rust/rust_belt/general.rsspec b/bin/rust/rust_belt/general.rsspec
-index dff404f..0952a9c 100644
+index dff404f..83ea025 100644
 --- a/bin/rust/rust_belt/general.rsspec
 +++ b/bin/rust/rust_belt/general.rsspec
-@@ -170,6 +170,27 @@ pred_ctor slice_own<T>()(t: thread_id_t, v: [T]) = foreach(slice_elems(v), (own)
-
- type_pred_def for<T> <[T]>.own = slice_own::<T>;
-
+@@ -172,0 +173,36 @@ type_pred_def for<T> <[T]>.own = slice_own::<T>;
 +// A slice borrow retains the ownership of every initialized element.
-+pred_ctor slice_full_borrow_content<T>(t: thread_id_t, p: *T, n: usize)(;) =
++pred_ctor slice_full_borrow_content<T>(t: thread_id_t, p: *T, n: usize)() =
 +    p[..n] |-> ?values &*& foreach(values, (own)(t));
 +
 +// T's sharing predicate also describes types with interior mutability.
@@ -27,17 +24,26 @@ index dff404f..0952a9c 100644
 +    pointer_within_limits(p) && pointer_within_limits(p + n)
 +}
 +
- type_pred_def <bool>.full_borrow_content = bool_full_borrow_content;
- type_pred_def <*_>.full_borrow_content = raw_ptr_full_borrow_content;
-
++pred_ctor array_own<T, N>()(t: thread_id_t, v: [T; N]) =
++    length(Array_elems(v)) == usize_of_const(typeid(N)) &*&
++    foreach(Array_elems(v), (own)(t));
++
++pred_ctor array_full_borrow_content<T, N>(t: thread_id_t, p: *[T; N])() =
++    *p |-> ?v &*& array_own::<T, N>(t, v);
++
++pred_ctor array_share<T, N>()(k: lifetime_t, t: thread_id_t, p: *[T; N]) =
++    slice_ref_valid(p as *T, usize_of_const(typeid(N))) == true &*&
++    [_]slice_elements_share(k, t, p as *T, usize_of_const(typeid(N)));
++
++type_pred_def for<T, N> <[T; N]>.own = array_own::<T, N>;
++type_pred_def for<T, N> <[T; N]>.full_borrow_content = array_full_borrow_content::<T, N>;
++type_pred_def for<T, N> <[T; N]>.share = array_share::<T, N>;
++
 diff --git a/src/rust_frontend/vf_mir_translator/vf_mir_translator.ml b/src/rust_frontend/vf_mir_translator/vf_mir_translator.ml
-index 667069d..b7f0798 100644
+index 667069d..1df7eb5 100644
 --- a/src/rust_frontend/vf_mir_translator/vf_mir_translator.ml
 +++ b/src/rust_frontend/vf_mir_translator/vf_mir_translator.ml
-@@ -1214,7 +1214,34 @@ module Make (Args : VF_MIR_TRANSLATOR_ARGS) = struct
-     in
-     let size = SizeofExpr (loc, TypeExpr vf_ty) in
-     let own tid vs =
+@@ -1217 +1217,28 @@ module Make (Args : VF_MIR_TRANSLATOR_ARGS) = struct
 -      Error "Expressing ownership of &[_] values is not yet supported"
 +      let elem_ty = elem_ty_info.Mir.vf_ty in
 +      let ptr = CastExpr (loc, PtrTypeExpr (loc, elem_ty), vs) in
@@ -67,6 +73,51 @@ index 667069d..b7f0798 100644
 +               [LitPat lifetime; LitPat content], Static)
 +      in
 +      Ok (Sep (loc, valid, borrow))
-     in
-     let shr lft tid l =
-       Error "Expressing shared ownership of &[_] values is not yet supported"
+@@ -1249,0 +1277 @@ module Make (Args : VF_MIR_TRANSLATOR_ARGS) = struct
++        | Param param -> Ast.IdentTypeExpr (loc, None, param.name)
+@@ -1644 +1672,6 @@ module Make (Args : VF_MIR_TRANSLATOR_ARGS) = struct
+-    | Param _ -> Ast.static_error loc "Todo: ConstKind::Param" None
++    | Param param ->
++        Ok
++          (CallExpr
++             (loc, "usize_of_const", [], [],
++              [LitPat (Typeid (loc, TypeExpr (IdentTypeExpr (loc, None, param.name))))],
++              Static))
+@@ -1669,2 +1702,8 @@ module Make (Args : VF_MIR_TRANSLATOR_ARGS) = struct
+-    let* (CastExpr (_, _, IntLit (_, len, _, _, _))) =
+-      translate_ty_const len_cpn loc
++    let* len_ty =
++      match len_cpn.kind with
++      | Param param -> Ok (IdentTypeExpr (loc, None, param.name))
++      | Value _ | Infer | Bound | Placeholder | Unevaluated | Error | Expr ->
++          let* (CastExpr (_, _, IntLit (_, len, _, _, _))) =
++            translate_ty_const len_cpn loc
++          in
++          Ok (LiteralConstTypeExpr (loc, Big_int.int_of_big_int len))
+@@ -1673,2 +1712 @@ module Make (Args : VF_MIR_TRANSLATOR_ARGS) = struct
+-      Ast.StaticArrayTypeExpr
+-        (loc, elem_ty, LiteralConstTypeExpr (loc, Big_int.int_of_big_int len))
++      Ast.StaticArrayTypeExpr (loc, elem_ty, len_ty)
+@@ -1678 +1716,4 @@ module Make (Args : VF_MIR_TRANSLATOR_ARGS) = struct
+-      Error "Expressing ownership of an array is not yet supported"
++      Ok
++        (CallExpr
++           (loc, "array_own", [elem_ty; len_ty], [],
++            [LitPat tid; LitPat vs], PredCtorCall))
+@@ -1681,2 +1722,4 @@ module Make (Args : VF_MIR_TRANSLATOR_ARGS) = struct
+-      Error
+-        "Expressing the full borrow content of an array is not yet supported"
++      Ok
++        (CallExpr
++           (loc, "array_full_borrow_content", [elem_ty; len_ty], [],
++            [LitPat t; LitPat l], Static))
+@@ -1695,3 +1738,6 @@ module Make (Args : VF_MIR_TRANSLATOR_ARGS) = struct
+-              Error
+-                "Expressing the shared ownership of an array is not yet \
+-                 supported");
++              Ok
++                (CoefAsn
++                   (loc, DummyPat,
++                    CallExpr
++                      (loc, "array_share", [elem_ty; len_ty], [],
++                       [LitPat k; LitPat t; LitPat l], PredCtorCall))));
