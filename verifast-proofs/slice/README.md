@@ -46,7 +46,9 @@ until its verification passes.
 Both copies include the same proof-only module; its contents are ghost code.
 The annotated `cast_array` contract requires pointer preservation and no
 unwinding; CI checks its body against that contract. `first_chunk` packages
-result ownership after the Rust expression has evaluated.
+result ownership after the Rust expression has evaluated. Reference creation
+uses the existing `precreate_ref` and `init_ref_share` rules, retaining the
+required lifetime tokens. A rejection test omits the element-sharing predicate.
 
 `backend.patch` applies to the pinned source. `apply-array-value-fix.py` applies
 the array-local change with an exact byte preimage because those upstream lines
