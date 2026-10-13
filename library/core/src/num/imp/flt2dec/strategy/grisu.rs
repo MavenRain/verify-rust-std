@@ -1064,6 +1064,11 @@ pub mod grisu_verify {
         assert!((delta as u128) << 53 >= upper as u128);
         assert!(4 * (upper - v) as u128 <= 3 * delta as u128);
         assert!(4 * (v - (minus - 1)) as u128 <= 3 * delta as u128);
+        if asymmetric {
+            assert!((minus - 1) & 0xffff != 0);
+        } else {
+            assert!(2 * ((plus - v) as u128) < delta as u128);
+        }
         assert!(2 * ((plus - v) as u128) < delta as u128 || (minus - 1) & 0xffff != 0);
         kani::cover(asymmetric, "interval includes asymmetric inputs");
         kani::cover(!asymmetric, "interval includes symmetric inputs");
