@@ -8,7 +8,7 @@ on:
       suite:
         type: choice
         default: grid
-        options: [grid, scaling, generators, properties, normalization]
+        options: [grid, scaling, generators, properties, normalization, arithmetic]
 
 permissions:
   contents: read
@@ -22,7 +22,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        group: ${{ fromJSON(inputs.suite == 'normalization' && '["grisu-shortest-normalization-contract","normalization-scaling-kissat","normalization-scaling-smt"]' || inputs.suite == 'generators' && '["dragon-shortest-fixed-exponent","dragon-exact-fixed-exponent"]' || inputs.suite == 'scaling' && '["scaling-profile","scaling-refinement","scaling-flat-smt"]' || '["bigint-shift-equivalence-000-031","bigint-shift-equivalence-032-063","bigint-shift-equivalence-064-095","bigint-shift-equivalence-096-127","bigint-shift-equivalence-128-159","bigint-shift-equivalence-160-191","bigint-shift-equivalence-192-223","bigint-shift-equivalence-224-229","scaling-profile"]') }}
+        group: ${{ fromJSON(inputs.suite == 'arithmetic' && '["arithmetic-kissat","arithmetic-smt-sum","arithmetic-smt-off"]' || inputs.suite == 'normalization' && '["grisu-shortest-normalization-contract","normalization-scaling-kissat","normalization-scaling-smt"]' || inputs.suite == 'generators' && '["dragon-shortest-fixed-exponent","dragon-exact-fixed-exponent"]' || inputs.suite == 'scaling' && '["scaling-profile","scaling-refinement","scaling-flat-smt"]' || '["bigint-shift-equivalence-000-031","bigint-shift-equivalence-032-063","bigint-shift-equivalence-064-095","bigint-shift-equivalence-096-127","bigint-shift-equivalence-128-159","bigint-shift-equivalence-160-191","bigint-shift-equivalence-192-223","bigint-shift-equivalence-224-229","scaling-profile"]') }}
     env:
       CARGO_BUILD_JOBS: 2
       RAYON_NUM_THREADS: 1
@@ -33,7 +33,7 @@ jobs:
       KANI_SYMEX_CACHE_DEREFERENCES: 'true'
       KANI_ARRAY_FIELD_SENSITIVITY: 'true'
       HARNESS_GROUP: ${{ matrix.group }}
-      SOLVER: ${{ (matrix.group == 'scaling-refinement' || matrix.group == 'scaling-flat-smt' || matrix.group == 'normalization-scaling-smt') && 'minisat' || 'kissat' }}
+      SOLVER: ${{ (matrix.group == 'scaling-refinement' || matrix.group == 'scaling-flat-smt' || matrix.group == 'normalization-scaling-smt' || startsWith(matrix.group, 'arithmetic-smt-')) && 'minisat' || 'kissat' }}
       KANI_FLAT_SMT_Z3: ${{ (matrix.group == 'scaling-flat-smt' || matrix.group == 'normalization-scaling-smt') && 'true' || 'false' }}
       KANI_ARITHMETIC_REFINEMENT: ${{ matrix.group == 'scaling-refinement' && 'true' || 'false' }}
     steps:
@@ -62,9 +62,23 @@ jobs:
         run: |
           if [[ "$HARNESS_GROUP" == scaling-* || "$HARNESS_GROUP" == normalization-scaling-* ]]; then
             echo num::imp::flt2dec::strategy::grisu::grisu_verify::check_scale_shortest_73 > harnesses.txt
+          elif [[ "$HARNESS_GROUP" == arithmetic-* ]]; then
+            echo num::imp::flt2dec::strategy::grisu::grisu_verify::check_scaling_arithmetic_73 > harnesses.txt
           else
             python3 -I scripts/kani-std-analysis/flt2dec_harnesses.py --group "$HARNESS_GROUP" > harnesses.txt
           fi
+      - name: Install arithmetic diagnostic solver
+        if: startsWith(matrix.group, 'arithmetic-smt-')
+        run: |
+          curl --fail --location --retry 3 --output cvc5.zip https://github.com/cvc5/cvc5/releases/download/cvc5-1.2.1/cvc5-Linux-x86_64-static.zip
+          echo '6d44abc233980a14d72cc5809287d27c3335b1d6ee863381d0b5ffcbd0d8de56  cvc5.zip' | sha256sum --check
+          unzip -q cvc5.zip
+          cat > cvc5-wrapper.sh <<'SH'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          exec ./cvc5-Linux-x86_64-static/bin/cvc5 --lang=smt2 --solve-bv-as-int="${HARNESS_GROUP##*-}" "$@"
+          SH
+          chmod +x cvc5-wrapper.sh
       - name: Verify selected proof cases
         run: |
           if [[ "$HARNESS_GROUP" == scaling-profile ]]; then
@@ -84,9 +98,13 @@ jobs:
           while IFS= read -r harness; do
             harness_args+=(--harness "$harness")
           done < harnesses.txt
+          cbmc_args=()
+          if [[ "$HARNESS_GROUP" == arithmetic-smt-* ]]; then
+            cbmc_args=(--cbmc-args --bitwuzla --external-smt2-solver "$PWD/cvc5-wrapper.sh")
+          fi
           set -o pipefail
           scripts/run-kani.sh --kani-args --jobs 1 --harness-timeout "$PROOF_TIMEOUT" \
-            --solver "$SOLVER" --output-format regular --exact "${harness_args[@]}" \
+            --solver "$SOLVER" --output-format regular --exact "${harness_args[@]}" "${cbmc_args[@]}" \
             2>&1 | tee proofs.log
       - uses: actions/upload-artifact@v4
         if: always()
@@ -97,6 +115,7 @@ jobs:
             cbmc-stack.txt
             target/kani_verify_std/target/**/out/*check_scale_shortest_73.out
             target/kani_verify_std/target/**/out/*check_normalize_shortest.out
+            target/kani_verify_std/target/**/out/*check_scaling_arithmetic_73.out
           if-no-files-found: ignore
 
   scaling-properties:

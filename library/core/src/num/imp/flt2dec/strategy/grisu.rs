@@ -1002,6 +1002,37 @@ pub mod grisu_verify {
         (plus.f, minus.f, v.f, plus.e, minusk)
     }
 
+    // This diagnostic isolates rounded products from float decoding and normalization.
+    #[kani::proof]
+    #[kani::solver(kissat)]
+    fn check_scaling_arithmetic_73() {
+        let v = kani::any::<u64>();
+        let gap = kani::any::<u64>();
+        let asymmetric = kani::any::<bool>();
+        kani::assume((512..=1 << 62).contains(&gap));
+        let upper_gap = if asymmetric { 2 * gap } else { gap };
+        kani::assume(v >= (1 << 62) + gap);
+        kani::assume(v <= u64::MAX - upper_gap);
+        let plus = v + upper_gap;
+        let minus = v - gap;
+        kani::assume(plus >= 1 << 63);
+        kani::assume(if asymmetric {
+            v == 1 << 63 && (gap == 1 << 9 || gap == 1 << 38)
+        } else {
+            (gap as u128) << 54 >= plus as u128
+        });
+        let (f, _, minusk) = CACHED_POW10[7];
+        let cached = Fp { f, e: 0 };
+        let plus = Fp { f: plus, e: 0 }.mul(cached).f;
+        let minus = Fp { f: minus, e: 0 }.mul(cached).f;
+        let v = Fp { f: v, e: 0 }.mul(cached).f;
+        let exp = ALPHA + i16::from(kani::any::<u8>() & 31);
+        kani::assume(exp <= GAMMA);
+        assert!(shortest_scaling_valid((plus, minus, v, exp, minusk)));
+        kani::cover(asymmetric, "arithmetic includes asymmetric intervals");
+        kani::cover(!asymmetric, "arithmetic includes symmetric intervals");
+    }
+
     fn shortest_scaling_valid(state: (u64, u64, u64, i16, i16)) -> bool {
         let (plus, minus, v, exp, minusk) = state;
         exp >= ALPHA
