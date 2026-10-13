@@ -9,21 +9,21 @@ permissions:
 
 jobs:
   compile:
-    runs-on: ubuntu-latest
+    runs-on: macos-latest
     timeout-minutes: 60
     env:
       CARGO_BUILD_JOBS: 1
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: 75fdf923a4676b2c8e18753d9d9fa0527cee40b1
+          ref: 46a748f4ea3d17401ed48b4267f5b44d0ac0ad99
           submodules: recursive
       - name: Restore the pinned verifier
         id: verifier
         uses: actions/cache@v4
         with:
           path: kani_build
-          key: pr601-kani-ubuntu-835817f2819435bed24f5225c76ca68355e81357
+          key: pr601-kani-macos-835817f2819435bed24f5225c76ca68355e81357
       - name: Compile the standard library and list proofs
         run: scripts/run-kani.sh --run list --kani-args --format json 2>&1 | tee compilation.log
       - name: Save the compiled verifier
@@ -31,7 +31,7 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: kani_build
-          key: pr601-kani-ubuntu-835817f2819435bed24f5225c76ca68355e81357
+          key: pr601-kani-macos-835817f2819435bed24f5225c76ca68355e81357
       - name: Preserve compilation logs
         if: always()
         uses: actions/upload-artifact@v4
@@ -43,7 +43,7 @@ jobs:
 
   verify:
     needs: compile
-    runs-on: ubuntu-latest
+    runs-on: macos-latest
     timeout-minutes: 60
     strategy:
       fail-fast: false
@@ -53,27 +53,32 @@ jobs:
           - dragon-exact
           - grisu-shortest
           - grisu-cached-power-39
+          - dragon-unit
+          - grisu-scaling-refinement
+          - grisu-scaling-flat
     env:
       CARGO_BUILD_JOBS: 1
-      KANI_FLAT_SMT_Z3: true
+      KANI_FLAT_SMT_Z3: ${{ matrix.proof != 'dragon-unit' && matrix.proof != 'grisu-scaling-refinement' && 'true' || 'false' }}
+      KANI_ARITHMETIC_REFINEMENT: ${{ matrix.proof == 'grisu-scaling-refinement' && 'true' || 'false' }}
       KANI_SYMEX_CACHE_DEREFERENCES: true
       KANI_ARRAY_FIELD_SENSITIVITY: false
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: 75fdf923a4676b2c8e18753d9d9fa0527cee40b1
+          ref: 46a748f4ea3d17401ed48b4267f5b44d0ac0ad99
           submodules: recursive
 
       - name: Restore the pinned verifier
         uses: actions/cache/restore@v4
         with:
           path: kani_build
-          key: pr601-kani-ubuntu-835817f2819435bed24f5225c76ca68355e81357
+          key: pr601-kani-macos-835817f2819435bed24f5225c76ca68355e81357
 
       - name: Verify the selected proof
         shell: bash
         run: |
           set -euo pipefail
+          selected_solver=minisat
           case '${{ matrix.proof }}' in
             dragon-exact)
               selected_harness=num::imp::flt2dec::strategy::dragon::dragon_verify::f32_01::check_format_exact
@@ -84,9 +89,16 @@ jobs:
             grisu-cached-power-39)
               selected_harness=num::imp::flt2dec::strategy::grisu::grisu_verify::f64_cached_power_39::check_format_shortest_opt
               ;;
+            dragon-unit)
+              selected_harness=num::imp::flt2dec::strategy::dragon::dragon_verify::f64_exp_1023::check_format_shortest
+              selected_solver=kissat
+              ;;
+            grisu-scaling-refinement|grisu-scaling-flat)
+              selected_harness=num::imp::flt2dec::strategy::grisu::grisu_verify::check_scale_shortest_00
+              ;;
           esac
-          scripts/run-kani.sh --kani-args --jobs 1 --harness-timeout 600s \
-            --solver minisat --output-format=terse --exact --harness "$selected_harness" \
+          /usr/bin/time -l scripts/run-kani.sh --kani-args --jobs 1 --harness-timeout 600s \
+            --solver "$selected_solver" --output-format=terse --exact --harness "$selected_harness" \
             2>&1 | tee focused-proof.log
 
       - name: Preserve verification logs
