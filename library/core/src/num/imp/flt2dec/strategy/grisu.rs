@@ -214,11 +214,20 @@ struct ShortestScaled {
 }
 
 #[inline]
-fn scale_shortest(d: &Decoded) -> ShortestScaled {
+fn normalize_shortest(d: &Decoded) -> (Fp, Fp, Fp) {
     // start with the normalized values with the shared exponent
     let plus = Fp { f: d.mant + d.plus, e: d.exp }.normalize();
     let minus = Fp { f: d.mant - d.minus, e: d.exp }.normalize_to(plus.e);
     let v = Fp { f: d.mant, e: d.exp }.normalize_to(plus.e);
+    (plus, minus, v)
+}
+
+#[inline]
+fn scale_shortest(d: &Decoded) -> ShortestScaled {
+    #[cfg(not(kani))]
+    let (plus, minus, v) = normalize_shortest(d);
+    #[cfg(kani)]
+    let (plus, minus, v) = grisu_verify::normalize_shortest_for_proof(d);
 
     // find any `cached = 10^minusk` such that `ALPHA <= minusk + plus.e + 64 <= GAMMA`.
     // since `plus` is normalized, this means `2^(62 + ALPHA) <= plus * cached < 2^(64 + GAMMA)`;
@@ -886,6 +895,76 @@ pub mod grisu_verify {
     // Decode gives minus = 1. Only normal powers of two have plus = 2,
     // with the f32 or f64 significand shifted by two. Callers prove these
     // conditions from the real decoder, without restricting finite float bits.
+    fn normalized_shortest_valid(
+        state: (u64, u64, u64, i16),
+        mant: u64,
+        input_plus: u64,
+        input_exp: i16,
+    ) -> bool {
+        let (plus, minus, v, exp) = state;
+        let shift = mant.wrapping_add(input_plus).leading_zeros() as i16;
+        exp == input_exp.wrapping_sub(shift)
+            && plus >= 1 << 63
+            && minus >= 1 << 62
+            && minus <= v
+            && v <= plus
+            && if input_plus == 1 {
+                let gap = plus - v;
+                gap >= 512 && gap == v - minus && (gap as u128) << 54 >= plus as u128
+            } else {
+                let gap = if mant == 1 << 25 { 1u64 << 38 } else { 1u64 << 9 };
+                v == 1 << 63 && plus == (1 << 63) + 2 * gap && minus == (1 << 63) - gap
+            }
+    }
+
+    #[kani::requires(
+        mant >= 2 && minus == 1
+            && (plus == 1 || (plus == 2 && (mant == 1 << 25 || mant == 1 << 54)))
+            && exp >= -1076 && exp <= 970
+            && mant as u128 + plus as u128 <= ((minus as u128 + plus as u128) << 53)
+    )]
+    #[kani::ensures(|result| normalized_shortest_valid(*result, mant, plus, exp))]
+    fn normalize_shortest_contract(
+        mant: u64,
+        minus: u64,
+        plus: u64,
+        exp: i16,
+    ) -> (u64, u64, u64, i16) {
+        let d = Decoded { mant, minus, plus, exp, inclusive: false };
+        let (plus, minus, v) = normalize_shortest(&d);
+        assert_eq!(plus.e, minus.e);
+        assert_eq!(plus.e, v.e);
+        (plus.f, minus.f, v.f, plus.e)
+    }
+
+    pub(super) fn normalize_shortest_for_proof(d: &Decoded) -> (Fp, Fp, Fp) {
+        let (plus, minus, v, e) = normalize_shortest_contract(d.mant, d.minus, d.plus, d.exp);
+        (Fp { f: plus, e }, Fp { f: minus, e }, Fp { f: v, e })
+    }
+
+    #[kani::proof_for_contract(normalize_shortest_contract)]
+    #[kani::stub(u64::leading_zeros, crate::num::imp::flt2dec::bit_scan_verify::leading_zeros_u64)]
+    #[kani::solver(kissat)]
+    fn check_normalize_shortest() {
+        let mant = kani::any::<u64>() & ((1u64 << 55) - 1);
+        let plus = if kani::any::<bool>() { 1 } else { 2 };
+        kani::assume(mant >= 2);
+        kani::assume(plus == 1 || mant == 1 << 25 || mant == 1 << 54);
+        kani::assume(mant as u128 + plus as u128 <= ((1 + plus as u128) << 53));
+        let exp = kani::any::<i16>();
+        kani::assume((-1076..=970).contains(&exp));
+        normalize_shortest_contract(mant, 1, plus, exp);
+        kani::cover(plus == 1 && mant == 2, "normalization includes the smallest symmetric input");
+        kani::cover(
+            plus == 2 && mant == 1 << 25,
+            "normalization includes asymmetric f32 intervals",
+        );
+        kani::cover(
+            plus == 2 && mant == 1 << 54,
+            "normalization includes asymmetric f64 intervals",
+        );
+    }
+
     #[kani::requires(
         mant >= 2 && minus == 1
             && (plus == 1 || (plus == 2 && (mant == 1 << 25 || mant == 1 << 54)))
@@ -1013,6 +1092,7 @@ pub mod grisu_verify {
             }
 
             #[kani::proof_for_contract(scale_shortest_contract)]
+            #[kani::stub_verified(normalize_shortest_contract)]
             #[kani::stub(proof_cached_power_index, $index_guide)]
             #[kani::stub(
                 u64::leading_zeros,

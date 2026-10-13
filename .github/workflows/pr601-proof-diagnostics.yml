@@ -8,7 +8,7 @@ on:
       suite:
         type: choice
         default: grid
-        options: [grid, scaling, generators, properties]
+        options: [grid, scaling, generators, properties, normalization]
 
 permissions:
   contents: read
@@ -22,7 +22,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        group: ${{ fromJSON(inputs.suite == 'generators' && '["dragon-shortest-fixed-exponent","dragon-exact-fixed-exponent"]' || inputs.suite == 'scaling' && '["scaling-profile","scaling-refinement","scaling-flat-smt"]' || '["bigint-shift-equivalence-000-031","bigint-shift-equivalence-032-063","bigint-shift-equivalence-064-095","bigint-shift-equivalence-096-127","bigint-shift-equivalence-128-159","bigint-shift-equivalence-160-191","bigint-shift-equivalence-192-223","bigint-shift-equivalence-224-229","scaling-profile"]') }}
+        group: ${{ fromJSON(inputs.suite == 'normalization' && '["grisu-shortest-normalization-contract","normalization-scaling-kissat","normalization-scaling-smt"]' || inputs.suite == 'generators' && '["dragon-shortest-fixed-exponent","dragon-exact-fixed-exponent"]' || inputs.suite == 'scaling' && '["scaling-profile","scaling-refinement","scaling-flat-smt"]' || '["bigint-shift-equivalence-000-031","bigint-shift-equivalence-032-063","bigint-shift-equivalence-064-095","bigint-shift-equivalence-096-127","bigint-shift-equivalence-128-159","bigint-shift-equivalence-160-191","bigint-shift-equivalence-192-223","bigint-shift-equivalence-224-229","scaling-profile"]') }}
     env:
       CARGO_BUILD_JOBS: 2
       RAYON_NUM_THREADS: 1
@@ -33,8 +33,8 @@ jobs:
       KANI_SYMEX_CACHE_DEREFERENCES: 'true'
       KANI_ARRAY_FIELD_SENSITIVITY: 'true'
       HARNESS_GROUP: ${{ matrix.group }}
-      SOLVER: ${{ (matrix.group == 'scaling-refinement' || matrix.group == 'scaling-flat-smt') && 'minisat' || 'kissat' }}
-      KANI_FLAT_SMT_Z3: ${{ matrix.group == 'scaling-flat-smt' && 'true' || 'false' }}
+      SOLVER: ${{ (matrix.group == 'scaling-refinement' || matrix.group == 'scaling-flat-smt' || matrix.group == 'normalization-scaling-smt') && 'minisat' || 'kissat' }}
+      KANI_FLAT_SMT_Z3: ${{ (matrix.group == 'scaling-flat-smt' || matrix.group == 'normalization-scaling-smt') && 'true' || 'false' }}
       KANI_ARITHMETIC_REFINEMENT: ${{ matrix.group == 'scaling-refinement' && 'true' || 'false' }}
     steps:
       - uses: actions/checkout@v4
@@ -60,7 +60,7 @@ jobs:
           key: cbmc-flat-smt-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('scripts/setup-flat-smt-cbmc.sh') }}
       - name: Select proof cases
         run: |
-          if [[ "$HARNESS_GROUP" == scaling-* ]]; then
+          if [[ "$HARNESS_GROUP" == scaling-* || "$HARNESS_GROUP" == normalization-scaling-* ]]; then
             echo num::imp::flt2dec::strategy::grisu::grisu_verify::check_scale_shortest_73 > harnesses.txt
           else
             python3 -I scripts/kani-std-analysis/flt2dec_harnesses.py --group "$HARNESS_GROUP" > harnesses.txt
@@ -96,6 +96,7 @@ jobs:
             proofs.log
             cbmc-stack.txt
             target/kani_verify_std/target/**/out/*check_scale_shortest_73.out
+            target/kani_verify_std/target/**/out/*check_normalize_shortest.out
           if-no-files-found: ignore
 
   scaling-properties:

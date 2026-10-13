@@ -52,6 +52,7 @@ def proof_groups(pointer_width=None):
         ("rounding-contract", "num::imp::flt2dec::rounding_verify", "check_round_up_contract", "contract"),
         ("grisu-exact-rounding-contract", GRISU, "check_round_exact_contract", "contract"),
         ("grisu-shortest-rounding-contract", GRISU, "check_round_shortest_contract", "contract"),
+        ("grisu-shortest-normalization-contract", GRISU, "check_normalize_shortest", "contract"),
         ("grisu-shortest-scaling-partitioning", GRISU, "check_scale_shortest_partitioning", "equivalence"),
         ("comparison-equivalence", DRAGON, "check_comparison_models_agree", "equivalence"),
         ("addition-equivalence", DRAGON, "check_add_model_agrees", "equivalence"),
