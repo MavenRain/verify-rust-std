@@ -21,6 +21,10 @@ on:
         description: Timeout for each direct SMT diagnostic, at most 2400 seconds
         type: string
         default: '600'
+      runner:
+        type: choice
+        options: [ubuntu-latest, macos-latest]
+        default: ubuntu-latest
 
 permissions:
   contents: read
@@ -29,7 +33,7 @@ permissions:
 jobs:
   proofs:
     if: inputs.suite != 'properties' && inputs.suite != 'arithmetic-properties'
-    runs-on: ubuntu-latest
+    runs-on: ${{ inputs.runner || 'ubuntu-latest' }}
     timeout-minutes: 90
     strategy:
       fail-fast: false
@@ -53,11 +57,18 @@ jobs:
         with:
           submodules: true
       - name: Free runner disk space
+        if: runner.os == 'Linux'
         run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /usr/local/.ghcup
       - name: Install build prerequisites
+        if: runner.os == 'Linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y cmake ninja-build flex bison clang libclang-dev gdb
+      - name: Install macOS build prerequisites
+        if: runner.os == 'macOS'
+        run: |
+          brew trust diffblue/cbmc
+          brew install cmake ninja flex bison
       - uses: actions/cache@v4
         with:
           path: cbmc_build/bin
@@ -99,6 +110,14 @@ jobs:
           chmod +x cvc5-wrapper.sh
       - name: Verify selected proof cases
         run: |
+          (
+            while sleep 60; do
+              date -u +%FT%TZ
+              ps -A -o pid=,rss=,comm= | awk '$3 ~ /(^|\/)(cbmc|kissat|cvc5)$/ { print "solver RSS KiB:", $0 }'
+            done
+          ) &
+          sampler_pid=$!
+          trap 'kill "$sampler_pid" 2>/dev/null || true' EXIT
           if [[ "$HARNESS_GROUP" == scaling-profile ]]; then
             (
               for _attempt in {1..60}; do
