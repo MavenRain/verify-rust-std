@@ -15,7 +15,16 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        solver: [minisat, kissat]
+        group:
+          - bigint-shift-equivalence-000-031
+          - bigint-shift-equivalence-032-063
+          - bigint-shift-equivalence-064-095
+          - bigint-shift-equivalence-096-127
+          - bigint-shift-equivalence-128-159
+          - bigint-shift-equivalence-160-191
+          - bigint-shift-equivalence-192-223
+          - bigint-shift-equivalence-224-229
+          - scaling-profile
     env:
       CARGO_BUILD_JOBS: 2
       RAYON_NUM_THREADS: 1
@@ -24,7 +33,7 @@ jobs:
       KANI_OBJECT_BITS: 12
       KANI_SYMEX_CACHE_DEREFERENCES: 'true'
       KANI_ARRAY_FIELD_SENSITIVITY: 'true'
-      SOLVER: ${{ matrix.solver }}
+      HARNESS_GROUP: ${{ matrix.group }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -34,23 +43,55 @@ jobs:
       - name: Install build prerequisites
         run: |
           sudo apt-get update
-          sudo apt-get install -y cmake ninja-build flex bison clang libclang-dev
+          sudo apt-get install -y cmake ninja-build flex bison clang libclang-dev gdb
       - uses: actions/cache@v4
         with:
           path: cbmc_build/bin
           key: cbmc-flat-smt-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('scripts/setup-flat-smt-cbmc.sh') }}
-      - name: Verify unresolved proof cases
+      - name: Build verifier and proof artifacts
         run: |
+          scripts/run-kani.sh --kani-args --jobs 1 --only-codegen --exact \
+            --harness num::imp::flt2dec::strategy::grisu::grisu_verify::check_scale_shortest_73
+      - uses: actions/cache/save@v4
+        with:
+          path: cbmc_build/bin
+          key: cbmc-flat-smt-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('scripts/setup-flat-smt-cbmc.sh') }}
+      - name: Select proof cases
+        run: |
+          if [[ "$HARNESS_GROUP" == scaling-profile ]]; then
+            echo num::imp::flt2dec::strategy::grisu::grisu_verify::check_scale_shortest_73 > harnesses.txt
+          else
+            python3 -I scripts/kani-std-analysis/flt2dec_harnesses.py --group "$HARNESS_GROUP" > harnesses.txt
+          fi
+      - name: Verify selected proof cases
+        run: |
+          if [[ "$HARNESS_GROUP" == scaling-profile ]]; then
+            (
+              for _attempt in {1..60}; do
+                cbmc_pid=$(pgrep -nx cbmc || true)
+                if [[ -n "$cbmc_pid" ]]; then
+                  sleep 90
+                  sudo gdb -batch -ex 'set pagination off' -ex 'thread apply all bt 30' -p "$cbmc_pid" 2>&1 | tee cbmc-stack.txt || true
+                  break
+                fi
+                sleep 10
+              done
+            ) &
+          fi
+          harness_args=()
+          while IFS= read -r harness; do
+            harness_args+=(--harness "$harness")
+          done < harnesses.txt
           set -o pipefail
           scripts/run-kani.sh --kani-args --jobs 1 --harness-timeout 420s \
-            --solver "$SOLVER" --output-format regular --exact \
-            --harness num::imp::flt2dec::strategy::dragon::dragon_verify::check_mul_pow2_full_storage_guided \
-            --harness num::imp::flt2dec::strategy::grisu::grisu_verify::check_scale_shortest_73 \
-            --harness num::imp::flt2dec::strategy::grisu::grisu_verify::check_scale_shortest_partitioning \
+            --solver kissat --output-format regular --exact "${harness_args[@]}" \
             2>&1 | tee proofs.log
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: proof-log-${{ matrix.solver }}
-          path: proofs.log
+          name: proof-log-${{ matrix.group }}
+          path: |
+            proofs.log
+            cbmc-stack.txt
+            target/kani_verify_std/target/**/out/*check_scale_shortest_73.out
           if-no-files-found: ignore
