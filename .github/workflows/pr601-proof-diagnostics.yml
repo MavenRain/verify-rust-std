@@ -36,6 +36,10 @@ on:
         description: Optional compiled harness to check directly
         type: string
         default: ''
+      property_smt:
+        description: Use integer SMT for individual assertion diagnostics
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -176,6 +180,8 @@ jobs:
         shard: [0, 1, 2, 3]
     env:
       PROPERTY_SHARD: ${{ matrix.shard }}
+      INPUT_HARNESS: ${{ inputs.harness || 'check_scale_shortest_73' }}
+      PROPERTY_SMT: ${{ inputs.property_smt && 'true' || 'false' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/cache/restore@v4
@@ -185,14 +191,14 @@ jobs:
           fail-on-cache-miss: true
       - uses: actions/download-artifact@v4
         with:
-          name: proof-log-normalization-scaling-kissat
-          run-id: 38451513946
+          name: ${{ inputs.artifact_name || 'proof-log-normalization-scaling-kissat' }}
+          run-id: ${{ inputs.artifact_run || '38451513946' }}
           github-token: ${{ github.token }}
           path: proof-input
       - name: Select diagnostic assertions
         run: |
           shopt -s globstar nullglob
-          goto_files=(proof-input/**/*check_scale_shortest_73.out)
+          goto_files=(proof-input/**/*"$INPUT_HARNESS".out)
           [[ ${#goto_files[@]} == 1 ]]
           cp "${goto_files[0]}" scaling.out
           cbmc_build/bin/cbmc --show-properties --json-ui scaling.out > properties.json
@@ -203,9 +209,14 @@ jobs:
 
           records = json.loads(Path('properties.json').read_text())
           properties = next(record['properties'] for record in records if 'properties' in record)
+          def active_function(prop):
+              function = prop['sourceLocation'].get('function', '')
+              if os.environ['INPUT_HARNESS'] == 'check_scale_shortest_73':
+                  return 'scale_shortest_contract' in function and '{closure#2}::{closure#1}' in function
+              return os.environ['INPUT_HARNESS'] in function
+
           selected = [prop['name'] for prop in properties
-                      if 'scale_shortest_contract' in prop['sourceLocation'].get('function', '')
-                      and '{closure#2}::{closure#1}' in prop['sourceLocation'].get('function', '')
+                      if active_function(prop)
                       and (prop['description'].startswith('assertion failed:')
                            or 'postcondition' in prop['description'].lower()
                            or 'post-condition' in prop['description'].lower())]
@@ -215,11 +226,27 @@ jobs:
           Path('selected-properties.txt').write_text('\n'.join(chosen) + '\n')
           print(f'Selected {len(chosen)} of {len(selected)} diagnostic properties')
           PY
+      - name: Install per-property SMT solver
+        if: inputs.property_smt
+        run: |
+          curl --fail --location --retry 3 --output cvc5.zip https://github.com/cvc5/cvc5/releases/download/cvc5-1.2.1/cvc5-Linux-x86_64-static.zip
+          echo '6d44abc233980a14d72cc5809287d27c3335b1d6ee863381d0b5ffcbd0d8de56  cvc5.zip' | sha256sum --check
+          unzip -q cvc5.zip
+          cat > cvc5-wrapper.sh <<'SH'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          exec ./cvc5-Linux-x86_64-static/bin/cvc5 --lang=smt2 --solve-bv-as-int=sum "$@"
+          SH
+          chmod +x cvc5-wrapper.sh
       - name: Time individual assertions
         run: |
           mkdir property-results
           failed=0
           index=0
+          solver_args=()
+          if [[ "$PROPERTY_SMT" == true ]]; then
+            solver_args=(--bitwuzla --external-smt2-solver ./cvc5-wrapper.sh)
+          fi
           while IFS= read -r property; do
             index=$((index + 1))
             set +e
@@ -227,7 +254,7 @@ jobs:
               --no-malloc-may-fail --no-undefined-shift-check --no-signed-overflow-check \
               --nan-check --no-self-loops-to-assumptions --no-pointer-primitive-check \
               --slice-formula --object-bits 12 --symex-cache-dereferences \
-              --property "$property" --verbosity 9 --json-ui scaling.out \
+              --property "$property" --verbosity 9 --json-ui "${solver_args[@]}" scaling.out \
               > "property-results/$index.json" 2> "property-results/$index.stderr"
             result=$?
             set -e
@@ -246,7 +273,7 @@ jobs:
             property-results
 
   scaling-integer-smt:
-    if: inputs.suite == 'properties' || inputs.suite == 'arithmetic-properties'
+    if: inputs.suite == 'arithmetic-properties'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     strategy:
