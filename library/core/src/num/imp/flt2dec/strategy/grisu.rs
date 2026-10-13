@@ -1103,20 +1103,105 @@ pub mod grisu_verify {
         (Fp { f: plus, e }, Fp { f: minus, e }, Fp { f: v, e })
     }
 
-    #[kani::proof_for_contract(multiply_shortest_contract)]
-    #[kani::stub_verified(rounded_multiply_contract)]
-    #[kani::stub(Fp::mul, stub_rounded_multiply)]
-    #[kani::solver(kissat)]
-    fn check_multiply_shortest_73() {
-        let (plus, minus, v, asymmetric) = arbitrary_normalized_interval();
-        let exp = kani::any::<i16>();
-        kani::assume((-1200..=1000).contains(&exp));
-        multiply_shortest_contract(plus, minus, v, exp, 7);
-        kani::cover(asymmetric, "multiplication includes asymmetric intervals");
-        kani::cover(!asymmetric, "multiplication includes symmetric intervals");
-        kani::cover(exp == -1200, "multiplication includes its smallest exponent");
-        kani::cover(exp == 1000, "multiplication includes its largest exponent");
+    macro_rules! verify_multiply_shortest {
+        ($name:ident, $index:literal) => {
+            #[kani::proof_for_contract(multiply_shortest_contract)]
+            #[kani::stub_verified(rounded_multiply_contract)]
+            #[kani::stub(Fp::mul, stub_rounded_multiply)]
+            #[kani::solver(kissat)]
+            fn $name() {
+                let (plus, minus, v, asymmetric) = arbitrary_normalized_interval();
+                let exp = kani::any::<i16>();
+                kani::assume((-1200..=1000).contains(&exp));
+                multiply_shortest_contract(plus, minus, v, exp, $index);
+                kani::cover(asymmetric, "multiplication includes asymmetric intervals");
+                kani::cover(!asymmetric, "multiplication includes symmetric intervals");
+                kani::cover(exp == -1200, "multiplication includes its smallest exponent");
+                kani::cover(exp == 1000, "multiplication includes its largest exponent");
+            }
+        };
     }
+
+    verify_multiply_shortest!(check_multiply_shortest_00, 80);
+    verify_multiply_shortest!(check_multiply_shortest_01, 79);
+    verify_multiply_shortest!(check_multiply_shortest_02, 78);
+    verify_multiply_shortest!(check_multiply_shortest_03, 77);
+    verify_multiply_shortest!(check_multiply_shortest_04, 76);
+    verify_multiply_shortest!(check_multiply_shortest_05, 75);
+    verify_multiply_shortest!(check_multiply_shortest_06, 74);
+    verify_multiply_shortest!(check_multiply_shortest_07, 73);
+    verify_multiply_shortest!(check_multiply_shortest_08, 72);
+    verify_multiply_shortest!(check_multiply_shortest_09, 71);
+    verify_multiply_shortest!(check_multiply_shortest_10, 70);
+    verify_multiply_shortest!(check_multiply_shortest_11, 69);
+    verify_multiply_shortest!(check_multiply_shortest_12, 68);
+    verify_multiply_shortest!(check_multiply_shortest_13, 67);
+    verify_multiply_shortest!(check_multiply_shortest_14, 66);
+    verify_multiply_shortest!(check_multiply_shortest_15, 65);
+    verify_multiply_shortest!(check_multiply_shortest_16, 64);
+    verify_multiply_shortest!(check_multiply_shortest_17, 63);
+    verify_multiply_shortest!(check_multiply_shortest_18, 62);
+    verify_multiply_shortest!(check_multiply_shortest_19, 61);
+    verify_multiply_shortest!(check_multiply_shortest_20, 60);
+    verify_multiply_shortest!(check_multiply_shortest_21, 59);
+    verify_multiply_shortest!(check_multiply_shortest_22, 58);
+    verify_multiply_shortest!(check_multiply_shortest_23, 57);
+    verify_multiply_shortest!(check_multiply_shortest_24, 56);
+    verify_multiply_shortest!(check_multiply_shortest_25, 55);
+    verify_multiply_shortest!(check_multiply_shortest_26, 54);
+    verify_multiply_shortest!(check_multiply_shortest_27, 53);
+    verify_multiply_shortest!(check_multiply_shortest_28, 52);
+    verify_multiply_shortest!(check_multiply_shortest_29, 51);
+    verify_multiply_shortest!(check_multiply_shortest_30, 50);
+    verify_multiply_shortest!(check_multiply_shortest_31, 49);
+    verify_multiply_shortest!(check_multiply_shortest_32, 48);
+    verify_multiply_shortest!(check_multiply_shortest_33, 47);
+    verify_multiply_shortest!(check_multiply_shortest_34, 46);
+    verify_multiply_shortest!(check_multiply_shortest_35, 45);
+    verify_multiply_shortest!(check_multiply_shortest_36, 44);
+    verify_multiply_shortest!(check_multiply_shortest_37, 43);
+    verify_multiply_shortest!(check_multiply_shortest_38, 42);
+    verify_multiply_shortest!(check_multiply_shortest_39, 41);
+    verify_multiply_shortest!(check_multiply_shortest_40, 40);
+    verify_multiply_shortest!(check_multiply_shortest_41, 39);
+    verify_multiply_shortest!(check_multiply_shortest_42, 38);
+    verify_multiply_shortest!(check_multiply_shortest_43, 37);
+    verify_multiply_shortest!(check_multiply_shortest_44, 36);
+    verify_multiply_shortest!(check_multiply_shortest_45, 35);
+    verify_multiply_shortest!(check_multiply_shortest_46, 34);
+    verify_multiply_shortest!(check_multiply_shortest_47, 33);
+    verify_multiply_shortest!(check_multiply_shortest_48, 32);
+    verify_multiply_shortest!(check_multiply_shortest_49, 31);
+    verify_multiply_shortest!(check_multiply_shortest_50, 30);
+    verify_multiply_shortest!(check_multiply_shortest_51, 29);
+    verify_multiply_shortest!(check_multiply_shortest_52, 28);
+    verify_multiply_shortest!(check_multiply_shortest_53, 27);
+    verify_multiply_shortest!(check_multiply_shortest_54, 26);
+    verify_multiply_shortest!(check_multiply_shortest_55, 25);
+    verify_multiply_shortest!(check_multiply_shortest_56, 24);
+    verify_multiply_shortest!(check_multiply_shortest_57, 23);
+    verify_multiply_shortest!(check_multiply_shortest_58, 22);
+    verify_multiply_shortest!(check_multiply_shortest_59, 21);
+    verify_multiply_shortest!(check_multiply_shortest_60, 20);
+    verify_multiply_shortest!(check_multiply_shortest_61, 19);
+    verify_multiply_shortest!(check_multiply_shortest_62, 18);
+    verify_multiply_shortest!(check_multiply_shortest_63, 17);
+    verify_multiply_shortest!(check_multiply_shortest_64, 16);
+    verify_multiply_shortest!(check_multiply_shortest_65, 15);
+    verify_multiply_shortest!(check_multiply_shortest_66, 14);
+    verify_multiply_shortest!(check_multiply_shortest_67, 13);
+    verify_multiply_shortest!(check_multiply_shortest_68, 12);
+    verify_multiply_shortest!(check_multiply_shortest_69, 11);
+    verify_multiply_shortest!(check_multiply_shortest_70, 10);
+    verify_multiply_shortest!(check_multiply_shortest_71, 9);
+    verify_multiply_shortest!(check_multiply_shortest_72, 8);
+    verify_multiply_shortest!(check_multiply_shortest_73, 7);
+    verify_multiply_shortest!(check_multiply_shortest_74, 6);
+    verify_multiply_shortest!(check_multiply_shortest_75, 5);
+    verify_multiply_shortest!(check_multiply_shortest_76, 4);
+    verify_multiply_shortest!(check_multiply_shortest_77, 3);
+    verify_multiply_shortest!(check_multiply_shortest_78, 2);
+    verify_multiply_shortest!(check_multiply_shortest_79, 1);
 
     fn rounded_product_wide(f: u64, coefficient: u64) -> u128 {
         (f as u128).wrapping_mul(coefficient as u128).wrapping_add(1 << 63)
