@@ -4,6 +4,11 @@ on:
   push:
     branches: [codex/pr601-proof-diagnostics]
   workflow_dispatch:
+    inputs:
+      suite:
+        type: choice
+        default: grid
+        options: [grid, scaling]
 
 permissions:
   contents: read
@@ -15,16 +20,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        group:
-          - bigint-shift-equivalence-000-031
-          - bigint-shift-equivalence-032-063
-          - bigint-shift-equivalence-064-095
-          - bigint-shift-equivalence-096-127
-          - bigint-shift-equivalence-128-159
-          - bigint-shift-equivalence-160-191
-          - bigint-shift-equivalence-192-223
-          - bigint-shift-equivalence-224-229
-          - scaling-profile
+        group: ${{ fromJSON(inputs.suite == 'scaling' && '["scaling-profile","scaling-refinement","scaling-flat-smt"]' || '["bigint-shift-equivalence-000-031","bigint-shift-equivalence-032-063","bigint-shift-equivalence-064-095","bigint-shift-equivalence-096-127","bigint-shift-equivalence-128-159","bigint-shift-equivalence-160-191","bigint-shift-equivalence-192-223","bigint-shift-equivalence-224-229","scaling-profile"]') }}
     env:
       CARGO_BUILD_JOBS: 2
       RAYON_NUM_THREADS: 1
@@ -34,6 +30,9 @@ jobs:
       KANI_SYMEX_CACHE_DEREFERENCES: 'true'
       KANI_ARRAY_FIELD_SENSITIVITY: 'true'
       HARNESS_GROUP: ${{ matrix.group }}
+      SOLVER: ${{ (matrix.group == 'scaling-refinement' || matrix.group == 'scaling-flat-smt') && 'minisat' || 'kissat' }}
+      KANI_FLAT_SMT_Z3: ${{ matrix.group == 'scaling-flat-smt' && 'true' || 'false' }}
+      KANI_ARITHMETIC_REFINEMENT: ${{ matrix.group == 'scaling-refinement' && 'true' || 'false' }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -58,7 +57,7 @@ jobs:
           key: cbmc-flat-smt-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('scripts/setup-flat-smt-cbmc.sh') }}
       - name: Select proof cases
         run: |
-          if [[ "$HARNESS_GROUP" == scaling-profile ]]; then
+          if [[ "$HARNESS_GROUP" == scaling-* ]]; then
             echo num::imp::flt2dec::strategy::grisu::grisu_verify::check_scale_shortest_73 > harnesses.txt
           else
             python3 -I scripts/kani-std-analysis/flt2dec_harnesses.py --group "$HARNESS_GROUP" > harnesses.txt
@@ -84,7 +83,7 @@ jobs:
           done < harnesses.txt
           set -o pipefail
           scripts/run-kani.sh --kani-args --jobs 1 --harness-timeout 420s \
-            --solver kissat --output-format regular --exact "${harness_args[@]}" \
+            --solver "$SOLVER" --output-format regular --exact "${harness_args[@]}" \
             2>&1 | tee proofs.log
       - uses: actions/upload-artifact@v4
         if: always()

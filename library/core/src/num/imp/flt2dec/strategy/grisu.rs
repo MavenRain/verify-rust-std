@@ -216,21 +216,9 @@ struct ShortestScaled {
 #[inline]
 fn scale_shortest(d: &Decoded) -> ShortestScaled {
     // start with the normalized values with the shared exponent
-    let plus = Fp {
-        f: d.mant + d.plus,
-        e: d.exp,
-    }
-    .normalize();
-    let minus = Fp {
-        f: d.mant - d.minus,
-        e: d.exp,
-    }
-    .normalize_to(plus.e);
-    let v = Fp {
-        f: d.mant,
-        e: d.exp,
-    }
-    .normalize_to(plus.e);
+    let plus = Fp { f: d.mant + d.plus, e: d.exp }.normalize();
+    let minus = Fp { f: d.mant - d.minus, e: d.exp }.normalize_to(plus.e);
+    let v = Fp { f: d.mant, e: d.exp }.normalize_to(plus.e);
 
     // find any `cached = 10^minusk` such that `ALPHA <= minusk + plus.e + 64 <= GAMMA`.
     // since `plus` is normalized, this means `2^(62 + ALPHA) <= plus * cached < 2^(64 + GAMMA)`;
@@ -252,12 +240,7 @@ fn scale_shortest(d: &Decoded) -> ShortestScaled {
     let plus = plus.mul(cached);
     let minus = minus.mul(cached);
     let v = v.mul(cached);
-    ShortestScaled {
-        plus,
-        minus,
-        v,
-        minusk,
-    }
+    ShortestScaled { plus, minus, v, minusk }
 }
 
 fn generate_shortest<'a>(d: &Decoded, buf: &'a mut [MaybeUninit<u8>]) -> ShortestRounding<'a> {
@@ -269,12 +252,7 @@ fn generate_shortest<'a>(d: &Decoded, buf: &'a mut [MaybeUninit<u8>]) -> Shortes
     assert!(buf.len() >= MAX_SIG_DIGITS);
     assert!(d.mant + d.plus < (1 << 61)); // we need at least three bits of additional precision
 
-    let ShortestScaled {
-        plus,
-        minus,
-        v,
-        minusk,
-    } = scale_shortest(d);
+    let ShortestScaled { plus, minus, v, minusk } = scale_shortest(d);
     debug_assert_eq!(plus.e, minus.e);
     debug_assert_eq!(plus.e, v.e);
 
@@ -520,11 +498,7 @@ fn round_and_weed(
     // this is too liberal, though, so we reject any `w(n)` not between `plus0` and `minus0`,
     // i.e., `plus1 - plus1w(n) <= minus0` or `plus1 - plus1w(n) >= plus0`. we utilize the facts
     // that `threshold = plus1 - minus1` and `plus1 - plus0 = minus0 - minus1 = 2 ulp`.
-    if 2 * ulp <= plus1w && plus1w <= threshold - 4 * ulp {
-        Some((buf, exp))
-    } else {
-        None
-    }
+    if 2 * ulp <= plus1w && plus1w <= threshold - 4 * ulp { Some((buf, exp)) } else { None }
 }
 
 /// The shortest mode implementation for Grisu with Dragon fallback.
@@ -585,11 +559,7 @@ fn generate_exact(d: &Decoded, buf: &mut [MaybeUninit<u8>], limit: i16) -> Optio
     assert!(!buf.is_empty());
 
     // normalize and scale `v`.
-    let v = Fp {
-        f: d.mant,
-        e: d.exp,
-    }
-    .normalize();
+    let v = Fp { f: d.mant, e: d.exp }.normalize();
     let (minusk, cached) = cached_power(ALPHA - v.e - 64, GAMMA - v.e - 64);
     let v = v.mul(cached);
 
@@ -600,18 +570,8 @@ fn generate_exact(d: &Decoded, buf: &mut [MaybeUninit<u8>], limit: i16) -> Optio
 
     let requested_digits = buf.len();
 
-    const POW10_UP_TO_9: [u32; 10] = [
-        1,
-        10,
-        100,
-        1000,
-        10_000,
-        100_000,
-        1_000_000,
-        10_000_000,
-        100_000_000,
-        1_000_000_000,
-    ];
+    const POW10_UP_TO_9: [u32; 10] =
+        [1, 10, 100, 1000, 10_000, 100_000, 1_000_000, 10_000_000, 100_000_000, 1_000_000_000];
 
     // We deviate from the original algorithm here and do some early checks to determine if we can satisfy requested_digits.
     // If we determine that we can't, we exit early and avoid most of the heavy lifting that the algorithm otherwise does.
@@ -752,13 +712,7 @@ fn generate_exact(d: &Decoded, buf: &mut [MaybeUninit<u8>], limit: i16) -> Optio
         // is the buffer full? run the rounding pass with the remainder.
         if i == len {
             // We have initialized `len` many bytes.
-            return Some(ExactRounding {
-                len,
-                exp,
-                remainder: r,
-                ten_kappa: 1 << e,
-                ulp: err,
-            });
+            return Some(ExactRounding { len, exp, remainder: r, ten_kappa: 1 << e, ulp: err });
         }
 
         // restore invariants
@@ -945,21 +899,27 @@ pub mod grisu_verify {
         plus: u64,
         exp: i16,
     ) -> (u64, u64, u64, i16, i16) {
-        let d = Decoded {
-            mant,
-            minus,
-            plus,
-            exp,
-            inclusive: false,
-        };
-        let ShortestScaled {
-            plus,
-            minus,
-            v,
-            minusk,
-        } = scale_shortest(&d);
+        let d = Decoded { mant, minus, plus, exp, inclusive: false };
+        let ShortestScaled { plus, minus, v, minusk } = scale_shortest(&d);
         assert_eq!(plus.e, minus.e);
         assert_eq!(plus.e, v.e);
+        // Establish the postcondition in separate checked steps, so later
+        // properties can use the bounds already established by earlier ones.
+        assert!((ALPHA..=GAMMA).contains(&plus.e));
+        assert!((-308..=332).contains(&minusk));
+        assert!(plus.f >= 1 << 62 && plus.f < u64::MAX);
+        assert!(minus.f > 1 && minus.f <= v.f && v.f <= plus.f);
+        let upper = plus.f + 1;
+        let delta = upper - (minus.f - 1);
+        let e = -plus.e as usize;
+        assert!(delta >= 4);
+        assert!((delta as u128) << 53 >= upper as u128);
+        assert!(4 * (upper - v.f) as u128 <= 3 * delta as u128);
+        assert!(4 * (v.f - (minus.f - 1)) as u128 <= 3 * delta as u128);
+        assert!(
+            2 * ((plus.f - v.f) as u128) < delta as u128
+                || (minus.f - 1) & ((1u64 << (e - 16)) - 1) != 0
+        );
         (plus.f, minus.f, v.f, plus.e, minusk)
     }
 
@@ -1040,14 +1000,8 @@ pub mod grisu_verify {
         let last = offset - (index * domain + range - 1) / range;
         assert!(first <= i32::from(exp) && i32::from(exp) <= last);
         assert!(last - first < 32);
-        kani::cover(
-            exp == -1138,
-            "partitions include the lowest normalized exponent",
-        );
-        kani::cover(
-            exp == 961,
-            "partitions include the highest normalized exponent",
-        );
+        kani::cover(exp == -1138, "partitions include the lowest normalized exponent");
+        kani::cover(exp == 961, "partitions include the highest normalized exponent");
     }
 
     macro_rules! check_scale_shortest_partition {
@@ -1095,10 +1049,7 @@ pub mod grisu_verify {
                     mant == 2 && exp == -1075,
                     "scaling includes the smallest f64 subnormal",
                 );
-                kani::cover(
-                    exp == -1076,
-                    "scaling includes the smallest decoded exponent",
-                );
+                kani::cover(exp == -1076, "scaling includes the smallest decoded exponent");
                 kani::cover(exp == 970, "scaling includes the largest decoded exponent");
                 kani::cover(plus == 2, "scaling includes unequal neighbor intervals");
                 kani::cover(
@@ -1109,14 +1060,8 @@ pub mod grisu_verify {
                     mant == 1 << 54 && plus == 2,
                     "scaling includes normal f64 powers of two",
                 );
-                kani::cover(
-                    result.3 == ALPHA,
-                    "scaling reaches the smallest target exponent",
-                );
-                kani::cover(
-                    result.3 == GAMMA,
-                    "scaling reaches the largest target exponent",
-                );
+                kani::cover(result.3 == ALPHA, "scaling reaches the smallest target exponent");
+                kani::cover(result.3 == GAMMA, "scaling reaches the largest target exponent");
                 kani::cover(
                     i32::from(normalized_exp) == crate::cmp::max(FIRST, -1138),
                     "scaling reaches the first normalized exponent in its range",
@@ -1280,11 +1225,9 @@ pub mod grisu_verify {
     ) -> Option<(usize, i16)> {
         let mut digits: [u8; PROOF_BUFLEN] = kani::any();
         digits[len - 1] = digit;
-        kani::assume(crate::num::imp::flt2dec::rounding_verify::prefix_all(
-            &digits,
-            len,
-            |byte| byte < u8::MAX,
-        ));
+        kani::assume(crate::num::imp::flt2dec::rounding_verify::prefix_all(&digits, len, |byte| {
+            byte < u8::MAX
+        }));
         let mut buf = [const { MaybeUninit::uninit() }; PROOF_BUFLEN];
         let start = buf.as_mut_ptr().cast::<u8>();
         // SAFETY: the contract bounds len by both distinct arrays' capacities.
@@ -1303,10 +1246,7 @@ pub mod grisu_verify {
             assert_eq!(output.as_ptr(), start.cast_const());
             let checksum = crate::num::imp::flt2dec::rounding_verify::prefix_checksum(output);
             kani::cover(checksum == 0, "shortest rounding returns readable bytes");
-            kani::cover(
-                output[len - 1] < digit,
-                "shortest rounding can decrease the final digit",
-            );
+            kani::cover(output[len - 1] < digit, "shortest rounding can decrease the final digit");
             (output.len(), output_exp)
         })
     }
@@ -1323,9 +1263,7 @@ pub mod grisu_verify {
         let len = buf.len();
         assert!(len > 0 && len <= PROOF_BUFLEN);
         // Read and check every actual byte before invoking the numeric summary.
-        assert!(crate::num::imp::flt2dec::rounding_verify::bytes_below_max(
-            buf
-        ));
+        assert!(crate::num::imp::flt2dec::rounding_verify::bytes_below_max(buf));
         let result = round_shortest_contract(
             buf[len - 1],
             len,
@@ -1360,18 +1298,12 @@ pub mod grisu_verify {
             kani::any(),
             kani::any(),
         );
-        kani::cover(
-            len == 1 && result.is_some(),
-            "shortest rounding accepts a single digit",
-        );
+        kani::cover(len == 1 && result.is_some(), "shortest rounding accepts a single digit");
         kani::cover(
             len == PROOF_BUFLEN && result.is_some(),
             "shortest rounding accepts a full buffer",
         );
-        kani::cover(
-            result.is_none(),
-            "shortest rounding can request the Dragon fallback",
-        );
+        kani::cover(result.is_none(), "shortest rounding can request the Dragon fallback");
     }
 
     // Keep uninitialized padding in this proof: only the initialized input
@@ -1407,28 +1339,15 @@ pub mod grisu_verify {
         // This initializes exactly the prefix required by possibly_round.
         unsafe { crate::ptr::copy_nonoverlapping(digits.as_ptr(), start, len) };
         // SAFETY: the copy above initialized the first len bytes.
-        unsafe {
-            possibly_round(
-                &mut buf[..capacity],
-                len,
-                exp,
-                limit,
-                remainder,
-                ten_kappa,
-                ulp,
-            )
-        }
-        .map(|(output, output_exp)| {
-            assert_eq!(output.as_ptr(), start.cast_const());
-            // Read every returned byte, including any appended carry. This
-            // checks initialization instead of merely inspecting slice metadata.
-            let checksum = crate::num::imp::flt2dec::rounding_verify::prefix_checksum(output);
-            kani::cover(
-                checksum == 0,
-                "final rounding returns readable output bytes",
-            );
-            (output.len(), output_exp)
-        })
+        unsafe { possibly_round(&mut buf[..capacity], len, exp, limit, remainder, ten_kappa, ulp) }
+            .map(|(output, output_exp)| {
+                assert_eq!(output.as_ptr(), start.cast_const());
+                // Read every returned byte, including any appended carry. This
+                // checks initialization instead of merely inspecting slice metadata.
+                let checksum = crate::num::imp::flt2dec::rounding_verify::prefix_checksum(output);
+                kani::cover(checksum == 0, "final rounding returns readable output bytes");
+                (output.len(), output_exp)
+            })
     }
 
     // The verified contract overapproximates byte values and the decision to
@@ -1447,9 +1366,7 @@ pub mod grisu_verify {
         // SAFETY: this adapter has possibly_round's initialized-prefix contract.
         // Read every active byte before the model can write to this buffer.
         let digits = unsafe { buf[..len].assume_init_ref() };
-        assert!(crate::num::imp::flt2dec::rounding_verify::bytes_below_max(
-            digits
-        ));
+        assert!(crate::num::imp::flt2dec::rounding_verify::bytes_below_max(digits));
         let result = round_exact_contract(len, buf.len(), exp, limit, remainder, ten_kappa, ulp);
         let written = result.map_or(len, |(written, _)| written);
         assert!(written <= buf.len());
@@ -1488,18 +1405,12 @@ pub mod grisu_verify {
             kani::any(),
             kani::any(),
         );
-        kani::cover(
-            len == 0 && result.is_some(),
-            "final rounding accepts an empty prefix",
-        );
+        kani::cover(len == 0 && result.is_some(), "final rounding accepts an empty prefix");
         kani::cover(
             len == PROOF_BUFLEN && result.is_some(),
             "final rounding accepts a full buffer",
         );
-        kani::cover(
-            result.is_none(),
-            "final rounding can request the Dragon fallback",
-        );
+        kani::cover(result.is_none(), "final rounding can request the Dragon fallback");
         kani::cover(
             result.is_some_and(|(written, _)| written > len),
             "final rounding can append an initialized carry",
@@ -1522,13 +1433,7 @@ pub mod grisu_verify {
         let exp: i16 = kani::any();
         // `[-1076, 970]` is the exponent range of `decode()`; 971 is unreachable.
         kani::assume(exp >= -1076 && exp <= 970);
-        Decoded {
-            mant,
-            minus,
-            plus,
-            exp,
-            inclusive: kani::any(),
-        }
+        Decoded { mant, minus, plus, exp, inclusive: kani::any() }
     }
 
     // An arbitrary input for the exact-mode proofs: the full documented
@@ -1539,13 +1444,7 @@ pub mod grisu_verify {
         kani::assume(mant > 0 && mant < (1 << 61));
         let exp: i16 = kani::any();
         kani::assume(exp >= -1076 && exp <= 970);
-        Decoded {
-            mant,
-            minus: 1,
-            plus: 1,
-            exp,
-            inclusive: kani::any(),
-        }
+        Decoded { mant, minus: 1, plus: 1, exp, inclusive: kani::any() }
     }
 
     // Keep each division's literal divisor visible to the verifier. Each arm
@@ -1573,15 +1472,9 @@ pub mod grisu_verify {
             #[kani::solver(kissat)]
             fn $name() {
                 let value: u32 = kani::any();
-                assert_eq!(
-                    div_rem_pow10(value, $divisor),
-                    div_rem_pow10_model(value, $divisor)
-                );
+                assert_eq!(div_rem_pow10(value, $divisor), div_rem_pow10_model(value, $divisor));
                 kani::cover(value == 0, "decimal division includes zero");
-                kani::cover(
-                    value == u32::MAX,
-                    "decimal division includes the largest dividend",
-                );
+                kani::cover(value == u32::MAX, "decimal division includes the largest dividend");
                 kani::cover(
                     value == $divisor - 1,
                     "decimal division includes the largest remainder",
