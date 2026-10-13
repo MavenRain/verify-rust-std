@@ -8,7 +8,7 @@ on:
       suite:
         type: choice
         default: grid
-        options: [grid, scaling]
+        options: [grid, scaling, generators]
 
 permissions:
   contents: read
@@ -20,13 +20,14 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        group: ${{ fromJSON(inputs.suite == 'scaling' && '["scaling-profile","scaling-refinement","scaling-flat-smt"]' || '["bigint-shift-equivalence-000-031","bigint-shift-equivalence-032-063","bigint-shift-equivalence-064-095","bigint-shift-equivalence-096-127","bigint-shift-equivalence-128-159","bigint-shift-equivalence-160-191","bigint-shift-equivalence-192-223","bigint-shift-equivalence-224-229","scaling-profile"]') }}
+        group: ${{ fromJSON(inputs.suite == 'generators' && '["dragon-shortest-fixed-exponent","dragon-exact-fixed-exponent"]' || inputs.suite == 'scaling' && '["scaling-profile","scaling-refinement","scaling-flat-smt"]' || '["bigint-shift-equivalence-000-031","bigint-shift-equivalence-032-063","bigint-shift-equivalence-064-095","bigint-shift-equivalence-096-127","bigint-shift-equivalence-128-159","bigint-shift-equivalence-160-191","bigint-shift-equivalence-192-223","bigint-shift-equivalence-224-229","scaling-profile"]') }}
     env:
       CARGO_BUILD_JOBS: 2
       RAYON_NUM_THREADS: 1
       KANI_JOBS: 1
       KANI_PATCHED_CBMC: 'true'
-      KANI_OBJECT_BITS: 12
+      KANI_OBJECT_BITS: ${{ inputs.suite == 'generators' && '14' || '12' }}
+      PROOF_TIMEOUT: ${{ inputs.suite == 'generators' && '3600s' || '420s' }}
       KANI_SYMEX_CACHE_DEREFERENCES: 'true'
       KANI_ARRAY_FIELD_SENSITIVITY: 'true'
       HARNESS_GROUP: ${{ matrix.group }}
@@ -82,7 +83,7 @@ jobs:
             harness_args+=(--harness "$harness")
           done < harnesses.txt
           set -o pipefail
-          scripts/run-kani.sh --kani-args --jobs 1 --harness-timeout 420s \
+          scripts/run-kani.sh --kani-args --jobs 1 --harness-timeout "$PROOF_TIMEOUT" \
             --solver "$SOLVER" --output-format regular --exact "${harness_args[@]}" \
             2>&1 | tee proofs.log
       - uses: actions/upload-artifact@v4
