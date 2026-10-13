@@ -120,15 +120,21 @@ pub const CACHED_POW10_LAST_E: i16 = 1039;
 
 #[doc(hidden)]
 pub fn cached_power(alpha: i16, gamma: i16) -> (i16, Fp) {
+    let (f, e, k) = CACHED_POW10[cached_power_index(alpha, gamma)];
+    (k, Fp { f, e })
+}
+
+#[inline]
+fn cached_power_index(alpha: i16, gamma: i16) -> usize {
     let offset = CACHED_POW10_FIRST_E as i32;
     let range = (CACHED_POW10.len() as i32) - 1;
     let domain = (CACHED_POW10_LAST_E - CACHED_POW10_FIRST_E) as i32;
     let idx = ((gamma as i32) - offset) * range / domain;
     #[cfg(kani)]
     let idx = proof_cached_power_index(idx);
-    let (f, e, k) = CACHED_POW10[idx as usize];
+    let (_, e, _) = CACHED_POW10[idx as usize];
     debug_assert!(alpha <= e && e <= gamma);
-    (k, Fp { f, e })
+    idx as usize
 }
 
 // Diagnostics can expose a constant table entry after asserting its index.
@@ -223,6 +229,13 @@ fn normalize_shortest(d: &Decoded) -> (Fp, Fp, Fp) {
 }
 
 #[inline]
+fn multiply_shortest(plus: Fp, minus: Fp, v: Fp, index: usize) -> (Fp, Fp, Fp) {
+    let (f, e, _) = CACHED_POW10[index];
+    let cached = Fp { f, e };
+    (plus.mul(cached), minus.mul(cached), v.mul(cached))
+}
+
+#[inline]
 fn scale_shortest(d: &Decoded) -> ShortestScaled {
     #[cfg(not(kani))]
     let (plus, minus, v) = normalize_shortest(d);
@@ -243,12 +256,11 @@ fn scale_shortest(d: &Decoded) -> ShortestScaled {
     //
     // the first gives `64 + GAMMA <= 32`, while the second gives `10 * 2^-ALPHA <= 2^64`;
     // -60 and -32 is the maximal range with this constraint, and V8 also uses them.
-    let (minusk, cached) = cached_power(ALPHA - plus.e - 64, GAMMA - plus.e - 64);
+    let index = cached_power_index(ALPHA - plus.e - 64, GAMMA - plus.e - 64);
+    let (_, _, minusk) = CACHED_POW10[index];
 
     // scale fps. this gives the maximal error of 1 ulp (proved from Theorem 5.1).
-    let plus = plus.mul(cached);
-    let minus = minus.mul(cached);
-    let v = v.mul(cached);
+    let (plus, minus, v) = multiply_shortest(plus, minus, v, index);
     ShortestScaled { plus, minus, v, minusk }
 }
 
@@ -904,6 +916,8 @@ pub mod grisu_verify {
         let (plus, minus, v, exp) = state;
         let shift = mant.wrapping_add(input_plus).leading_zeros() as i16;
         exp == input_exp.wrapping_sub(shift)
+            && normalized_interval_valid(plus, minus, v)
+            && plus as u128 - minus as u128 == (input_plus as u128 + 1) << shift
             && plus >= 1 << 63
             && minus >= 1 << 62
             && minus <= v
@@ -985,6 +999,7 @@ pub mod grisu_verify {
     #[kani::ensures(|result| {
         shortest_scaling_valid(*result)
             && shortest_scaling_exponent_matches(mant, plus, exp, result.3, result.4)
+            && shortest_scaling_width_valid(mant, minus, plus, result.0, result.1)
     })]
     fn scale_shortest_contract(
         mant: u64,
@@ -1018,7 +1033,89 @@ pub mod grisu_verify {
             2 * ((plus.f - v.f) as u128) < delta as u128
                 || (minus.f - 1) & ((1u64 << (e - 16)) - 1) != 0
         );
+        let (max_kappa, max_ten) = max_pow10_no_more_than((upper >> e) as u32);
+        assert_eq!(decimal_minimum_upper(1, max_kappa), max_ten as u128);
+        assert!((max_ten as u128) << e <= upper as u128);
+        decimal_termination_contract(delta, 1u64 << e, max_kappa);
         (plus.f, minus.f, v.f, plus.e, minusk)
+    }
+
+    fn normalized_interval_valid(plus: u64, minus: u64, v: u64) -> bool {
+        plus >= 1 << 63 && minus >= 1 << 62 && minus <= v && v <= plus && {
+            let gap = v - minus;
+            gap >= 512
+                && gap <= 1 << 62
+                && if plus - v == gap {
+                    (gap as u128) << 54 >= plus as u128
+                } else {
+                    v == 1 << 63 && (gap == 1 << 9 || gap == 1 << 38) && plus == (1 << 63) + 2 * gap
+                }
+        }
+    }
+
+    fn scaled_interval_valid(state: (u64, u64, u64), symmetric: bool) -> bool {
+        let (plus, minus, v) = state;
+        plus >= 1 << 62 && plus < u64::MAX && minus > 1 && minus <= v && v <= plus && {
+            let upper = plus + 1;
+            let delta = upper - (minus - 1);
+            delta >= 4
+                && (delta as u128) << 53 >= upper as u128
+                && 4 * (upper - v) as u128 <= 3 * delta as u128
+                && 4 * (v - (minus - 1)) as u128 <= 3 * delta as u128
+                && (2 * ((plus - v) as u128) < delta as u128 || (minus - 1) & 0xffff != 0)
+                && if symmetric {
+                    2 * ((plus - v) as u128) < delta as u128
+                } else {
+                    (minus - 1) & 0xffff != 0
+                }
+        }
+    }
+
+    #[kani::requires(normalized_interval_valid(plus, minus, v)
+        && (-1200..=1000).contains(&exp) && index > 0 && index < CACHED_POW10.len())]
+    #[kani::ensures(|result| scaled_interval_valid(
+            (result.0, result.1, result.2), plus.wrapping_sub(v) == v.wrapping_sub(minus))
+        && result.0.wrapping_sub(result.1) <= plus.wrapping_sub(minus)
+        && index < CACHED_POW10.len()
+        && i32::from(result.3) == i32::from(exp) + i32::from(CACHED_POW10[index].1) + 64)]
+    fn multiply_shortest_contract(
+        plus: u64,
+        minus: u64,
+        v: u64,
+        exp: i16,
+        index: usize,
+    ) -> (u64, u64, u64, i16) {
+        let (plus, minus, v) = multiply_shortest(
+            Fp { f: plus, e: exp },
+            Fp { f: minus, e: exp },
+            Fp { f: v, e: exp },
+            index,
+        );
+        assert_eq!(plus.e, minus.e);
+        assert_eq!(plus.e, v.e);
+        (plus.f, minus.f, v.f, plus.e)
+    }
+
+    fn stub_multiply_shortest(plus: Fp, minus: Fp, v: Fp, index: usize) -> (Fp, Fp, Fp) {
+        assert_eq!(plus.e, minus.e);
+        assert_eq!(plus.e, v.e);
+        let (plus, minus, v, e) = multiply_shortest_contract(plus.f, minus.f, v.f, plus.e, index);
+        (Fp { f: plus, e }, Fp { f: minus, e }, Fp { f: v, e })
+    }
+
+    #[kani::proof_for_contract(multiply_shortest_contract)]
+    #[kani::stub_verified(rounded_multiply_contract)]
+    #[kani::stub(Fp::mul, stub_rounded_multiply)]
+    #[kani::solver(kissat)]
+    fn check_multiply_shortest_73() {
+        let (plus, minus, v, asymmetric) = arbitrary_normalized_interval();
+        let exp = kani::any::<i16>();
+        kani::assume((-1200..=1000).contains(&exp));
+        multiply_shortest_contract(plus, minus, v, exp, 7);
+        kani::cover(asymmetric, "multiplication includes asymmetric intervals");
+        kani::cover(!asymmetric, "multiplication includes symmetric intervals");
+        kani::cover(exp == -1200, "multiplication includes its smallest exponent");
+        kani::cover(exp == 1000, "multiplication includes its largest exponent");
     }
 
     fn rounded_product_wide(f: u64, coefficient: u64) -> u128 {
@@ -1053,7 +1150,7 @@ pub mod grisu_verify {
         kani::cover(f == u64::MAX && coefficient == u64::MAX, "maximum product is covered");
     }
 
-    fn scaling_arithmetic_73_input() -> (u64, u64, u64, i16, bool) {
+    fn arbitrary_normalized_interval() -> (u64, u64, u64, bool) {
         let asymmetric = kani::any::<bool>();
         let v = if asymmetric { 1 << 63 } else { kani::any::<u64>() };
         let gap = match (asymmetric, kani::any::<bool>()) {
@@ -1073,6 +1170,11 @@ pub mod grisu_verify {
         } else {
             (gap as u128) << 54 >= plus as u128
         });
+        (plus, minus, v, asymmetric)
+    }
+
+    fn scaling_arithmetic_73_input() -> (u64, u64, u64, i16, bool) {
+        let (plus, minus, v, asymmetric) = arbitrary_normalized_interval();
         let (f, _, minusk) = CACHED_POW10[7];
         let cached = Fp { f, e: 0 };
         let plus = Fp { f: plus, e: 0 }.mul(cached).f;
@@ -1131,6 +1233,18 @@ pub mod grisu_verify {
         assert!(2 * ((plus - v) as u128) < delta as u128 || (minus - 1) & 0xffff != 0);
         kani::cover(asymmetric, "interval includes asymmetric inputs");
         kani::cover(!asymmetric, "interval includes symmetric inputs");
+    }
+
+    fn shortest_scaling_width_valid(
+        mant: u64,
+        minus: u64,
+        plus: u64,
+        scaled_plus: u64,
+        scaled_minus: u64,
+    ) -> bool {
+        let shift = mant.wrapping_add(plus).leading_zeros();
+        scaled_minus <= scaled_plus
+            && scaled_plus as u128 - scaled_minus as u128 <= (minus as u128 + plus as u128) << shift
     }
 
     fn shortest_scaling_exponent_matches(
@@ -1287,8 +1401,9 @@ pub mod grisu_verify {
 
             #[kani::proof_for_contract(scale_shortest_contract)]
             #[kani::stub_verified(normalize_shortest_contract)]
-            #[kani::stub_verified(rounded_multiply_contract)]
-            #[kani::stub(Fp::mul, stub_rounded_multiply)]
+            #[kani::stub_verified(multiply_shortest_contract)]
+            #[kani::stub(multiply_shortest, stub_multiply_shortest)]
+            #[kani::stub_verified(decimal_termination_contract)]
             #[cfg_attr(
                 target_pointer_width = "64",
                 kani::stub(
