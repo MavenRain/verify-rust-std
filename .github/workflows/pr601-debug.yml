@@ -16,7 +16,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: 3d54ac2299dc0f4e06716264a1c73d7827635777
+          ref: 75fdf923a4676b2c8e18753d9d9fa0527cee40b1
           submodules: recursive
       - name: Restore the pinned verifier
         id: verifier
@@ -25,7 +25,7 @@ jobs:
           path: kani_build
           key: pr601-kani-ubuntu-835817f2819435bed24f5225c76ca68355e81357
       - name: Compile the standard library and list proofs
-        run: scripts/run-kani.sh --run list 2>&1 | tee compilation.log
+        run: scripts/run-kani.sh --run list --kani-args --format json 2>&1 | tee compilation.log
       - name: Save the compiled verifier
         if: steps.verifier.outputs.cache-hit != 'true'
         uses: actions/cache/save@v4
@@ -61,7 +61,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: 3d54ac2299dc0f4e06716264a1c73d7827635777
+          ref: 75fdf923a4676b2c8e18753d9d9fa0527cee40b1
           submodules: recursive
 
       - name: Restore the pinned verifier
