@@ -8,7 +8,7 @@ on:
       suite:
         type: choice
         default: grid
-        options: [grid, scaling, generators, properties, normalization, arithmetic, grisu-generators]
+        options: [grid, scaling, generators, properties, normalization, arithmetic, grisu-generators, arithmetic-properties]
 
 permissions:
   contents: read
@@ -16,7 +16,7 @@ permissions:
 
 jobs:
   proofs:
-    if: inputs.suite != 'properties'
+    if: inputs.suite != 'properties' && inputs.suite != 'arithmetic-properties'
     runs-on: ubuntu-latest
     timeout-minutes: 90
     strategy:
@@ -98,13 +98,12 @@ jobs:
           while IFS= read -r harness; do
             harness_args+=(--harness "$harness")
           done < harnesses.txt
-          cbmc_args=()
           if [[ "$HARNESS_GROUP" == arithmetic-smt-* ]]; then
-            cbmc_args=(--cbmc-args --bitwuzla --external-smt2-solver "$PWD/cvc5-wrapper.sh")
+            export KANI_DIAGNOSTIC_SMT2_SOLVER="$PWD/cvc5-wrapper.sh"
           fi
           set -o pipefail
           scripts/run-kani.sh --kani-args --jobs 1 --harness-timeout "$PROOF_TIMEOUT" \
-            --solver "$SOLVER" --output-format regular --exact "${harness_args[@]}" "${cbmc_args[@]}" \
+            --solver "$SOLVER" --output-format regular --exact "${harness_args[@]}" \
             2>&1 | tee proofs.log
       - uses: actions/upload-artifact@v4
         if: always()
@@ -198,7 +197,7 @@ jobs:
             property-results
 
   scaling-integer-smt:
-    if: inputs.suite == 'properties'
+    if: inputs.suite == 'properties' || inputs.suite == 'arithmetic-properties'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     strategy:
@@ -207,6 +206,7 @@ jobs:
         mode: [sum, iand, off]
     env:
       INTEGER_MODE: ${{ matrix.mode }}
+      INPUT_HARNESS: ${{ inputs.suite == 'arithmetic-properties' && 'check_scaling_arithmetic_73' || 'check_scale_shortest_73' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/cache/restore@v4
@@ -216,8 +216,8 @@ jobs:
           fail-on-cache-miss: true
       - uses: actions/download-artifact@v4
         with:
-          name: proof-log-normalization-scaling-kissat
-          run-id: 38451513946
+          name: ${{ inputs.suite == 'arithmetic-properties' && 'proof-log-arithmetic-smt-sum' || 'proof-log-normalization-scaling-kissat' }}
+          run-id: ${{ inputs.suite == 'arithmetic-properties' && '38457183350' || '38451513946' }}
           github-token: ${{ github.token }}
           path: proof-input
       - name: Install pinned solver
@@ -234,7 +234,7 @@ jobs:
       - name: Check every scaling property with integer arithmetic
         run: |
           shopt -s globstar nullglob
-          goto_files=(proof-input/**/*check_scale_shortest_73.out)
+          goto_files=(proof-input/**/*"$INPUT_HARNESS".out)
           [[ ${#goto_files[@]} == 1 ]]
           timeout --kill-after=5 600 cbmc_build/bin/cbmc \
             --no-malloc-may-fail --no-undefined-shift-check --no-signed-overflow-check \

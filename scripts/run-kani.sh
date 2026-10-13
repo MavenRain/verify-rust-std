@@ -25,6 +25,9 @@ fi
 if [[ "${KANI_ARRAY_FIELD_SENSITIVITY:-true}" == false ]]; then
     kani_cbmc_args+=(--no-array-field-sensitivity)
 fi
+if [[ -n "${KANI_DIAGNOSTIC_SMT2_SOLVER:-}" ]]; then
+    kani_cbmc_args+=(--bitwuzla --external-smt2-solver "$KANI_DIAGNOSTIC_SMT2_SOLVER")
+fi
 if [[ "${KANI_FLAT_SMT_Z3:-false}" == true ]]; then
     if [[ "${KANI_ARITHMETIC_REFINEMENT:-false}" == true ]]; then
         echo "Flat SMT encoding cannot be combined with SAT arithmetic refinement." >&2
