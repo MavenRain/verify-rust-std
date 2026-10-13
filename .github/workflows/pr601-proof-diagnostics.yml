@@ -1,0 +1,56 @@
+name: PR601 proof diagnostics
+
+on:
+  push:
+    branches: [codex/pr601-proof-diagnostics]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  proofs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        solver: [minisat, kissat]
+    env:
+      CARGO_BUILD_JOBS: 2
+      RAYON_NUM_THREADS: 1
+      KANI_JOBS: 1
+      KANI_PATCHED_CBMC: 'true'
+      KANI_OBJECT_BITS: 12
+      KANI_SYMEX_CACHE_DEREFERENCES: 'true'
+      KANI_ARRAY_FIELD_SENSITIVITY: 'true'
+      SOLVER: ${{ matrix.solver }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - name: Free runner disk space
+        run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /usr/local/.ghcup
+      - name: Install build prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake ninja-build flex bison clang libclang-dev
+      - uses: actions/cache@v4
+        with:
+          path: cbmc_build/bin
+          key: cbmc-flat-smt-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('scripts/setup-flat-smt-cbmc.sh') }}
+      - name: Verify unresolved proof cases
+        run: |
+          set -o pipefail
+          scripts/run-kani.sh --kani-args --jobs 1 --harness-timeout 420s \
+            --solver "$SOLVER" --output-format regular --exact \
+            --harness num::imp::flt2dec::strategy::dragon::dragon_verify::check_mul_pow2_full_storage_guided \
+            --harness num::imp::flt2dec::strategy::grisu::grisu_verify::check_scale_shortest_73 \
+            --harness num::imp::flt2dec::strategy::grisu::grisu_verify::check_scale_shortest_partitioning \
+            2>&1 | tee proofs.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: proof-log-${{ matrix.solver }}
+          path: proofs.log
+          if-no-files-found: ignore
