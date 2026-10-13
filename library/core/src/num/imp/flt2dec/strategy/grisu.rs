@@ -971,7 +971,10 @@ pub mod grisu_verify {
             && exp >= -1076 && exp <= 970
             && mant as u128 + plus as u128 <= ((minus as u128 + plus as u128) << 53)
     )]
-    #[kani::ensures(|result| shortest_scaling_valid(*result))]
+    #[kani::ensures(|result| {
+        shortest_scaling_valid(*result)
+            && shortest_scaling_exponent_matches(mant, plus, exp, result.3, result.4)
+    })]
     fn scale_shortest_contract(
         mant: u64,
         minus: u64,
@@ -1072,6 +1075,24 @@ pub mod grisu_verify {
         assert!(2 * ((plus - v) as u128) < delta as u128 || (minus - 1) & 0xffff != 0);
         kani::cover(asymmetric, "interval includes asymmetric inputs");
         kani::cover(!asymmetric, "interval includes symmetric inputs");
+    }
+
+    fn shortest_scaling_exponent_matches(
+        mant: u64,
+        input_plus: u64,
+        input_exp: i16,
+        exp: i16,
+        minusk: i16,
+    ) -> bool {
+        let normalized_exp =
+            i32::from(input_exp) - mant.wrapping_add(input_plus).leading_zeros() as i32;
+        let index = (i32::from(GAMMA) - normalized_exp - 64 - i32::from(CACHED_POW10_FIRST_E))
+            * (CACHED_POW10.len() as i32 - 1)
+            / i32::from(CACHED_POW10_LAST_E - CACHED_POW10_FIRST_E);
+        index >= 0 && (index as usize) < CACHED_POW10.len() && {
+            let (_, cached_exp, cached_k) = CACHED_POW10[index as usize];
+            i32::from(exp) == normalized_exp + i32::from(cached_exp) + 64 && minusk == cached_k
+        }
     }
 
     fn shortest_scaling_valid(state: (u64, u64, u64, i16, i16)) -> bool {
