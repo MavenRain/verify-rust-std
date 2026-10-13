@@ -118,8 +118,8 @@ jobs:
           fail-on-cache-miss: true
       - uses: actions/download-artifact@v4
         with:
-          name: proof-log-scaling-profile
-          run-id: 38445736924
+          name: proof-log-normalization-scaling-kissat
+          run-id: 38451513946
           github-token: ${{ github.token }}
           path: proof-input
       - name: Select diagnostic assertions
@@ -138,6 +138,7 @@ jobs:
           properties = next(record['properties'] for record in records if 'properties' in record)
           selected = [prop['name'] for prop in properties
                       if 'scale_shortest_contract' in prop['sourceLocation'].get('function', '')
+                      and '{closure#2}::{closure#1}' in prop['sourceLocation'].get('function', '')
                       and (prop['description'].startswith('assertion failed:')
                            or 'postcondition' in prop['description'].lower()
                            or 'post-condition' in prop['description'].lower())]
@@ -176,3 +177,56 @@ jobs:
             selected-properties.txt
             property-summary.tsv
             property-results
+
+  scaling-integer-smt:
+    if: inputs.suite == 'properties'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        mode: [sum, iand, off]
+    env:
+      INTEGER_MODE: ${{ matrix.mode }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache/restore@v4
+        with:
+          path: cbmc_build/bin
+          key: cbmc-flat-smt-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('scripts/setup-flat-smt-cbmc.sh') }}
+          fail-on-cache-miss: true
+      - uses: actions/download-artifact@v4
+        with:
+          name: proof-log-normalization-scaling-kissat
+          run-id: 38451513946
+          github-token: ${{ github.token }}
+          path: proof-input
+      - name: Install pinned solver
+        run: |
+          curl --fail --location --retry 3 --output cvc5.zip https://github.com/cvc5/cvc5/releases/download/cvc5-1.2.1/cvc5-Linux-x86_64-static.zip
+          echo '6d44abc233980a14d72cc5809287d27c3335b1d6ee863381d0b5ffcbd0d8de56  cvc5.zip' | sha256sum --check
+          unzip -q cvc5.zip
+          cat > cvc5-wrapper.sh <<'SH'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          exec ./cvc5-Linux-x86_64-static/bin/cvc5 --lang=smt2 --solve-bv-as-int="$INTEGER_MODE" "$@"
+          SH
+          chmod +x cvc5-wrapper.sh
+      - name: Check every scaling property with integer arithmetic
+        run: |
+          shopt -s globstar nullglob
+          goto_files=(proof-input/**/*check_scale_shortest_73.out)
+          [[ ${#goto_files[@]} == 1 ]]
+          timeout --kill-after=5 600 cbmc_build/bin/cbmc \
+            --no-malloc-may-fail --no-undefined-shift-check --no-signed-overflow-check \
+            --nan-check --no-self-loops-to-assumptions --no-pointer-primitive-check \
+            --slice-formula --object-bits 12 --symex-cache-dereferences \
+            --bitwuzla --external-smt2-solver ./cvc5-wrapper.sh \
+            --verbosity 9 --json-ui "${goto_files[0]}" > integer-smt.json 2> integer-smt.stderr
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: scaling-integer-smt-${{ matrix.mode }}
+          path: |
+            integer-smt.json
+            integer-smt.stderr
