@@ -25,6 +25,17 @@ on:
         type: choice
         options: [ubuntu-latest, macos-latest]
         default: ubuntu-latest
+      artifact_run:
+        description: Optional run containing a previously compiled proof
+        type: string
+        default: ''
+      artifact_name:
+        type: string
+        default: ''
+      harness:
+        description: Optional compiled harness to check directly
+        type: string
+        default: ''
 
 permissions:
   contents: read
@@ -245,7 +256,7 @@ jobs:
     env:
       INTEGER_MODE: ${{ matrix.mode }}
       SOLVER_TIMEOUT: ${{ inputs.seconds || '600' }}
-      INPUT_HARNESS: ${{ inputs.suite == 'arithmetic-properties' && 'check_scaling_arithmetic_73' || 'check_scale_shortest_73' }}
+      INPUT_HARNESS: ${{ inputs.harness || inputs.suite == 'arithmetic-properties' && 'check_scaling_arithmetic_73' || 'check_scale_shortest_73' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/cache/restore@v4
@@ -255,8 +266,8 @@ jobs:
           fail-on-cache-miss: true
       - uses: actions/download-artifact@v4
         with:
-          name: ${{ inputs.suite == 'arithmetic-properties' && 'proof-log-arithmetic-smt-sum' || 'proof-log-normalization-scaling-kissat' }}
-          run-id: ${{ inputs.suite == 'arithmetic-properties' && '38457183350' || '38451513946' }}
+          name: ${{ inputs.artifact_name || inputs.suite == 'arithmetic-properties' && 'proof-log-arithmetic-smt-sum' || 'proof-log-normalization-scaling-kissat' }}
+          run-id: ${{ inputs.artifact_run || inputs.suite == 'arithmetic-properties' && '38457183350' || '38451513946' }}
           github-token: ${{ github.token }}
           path: proof-input
       - name: Install pinned solver
@@ -267,7 +278,9 @@ jobs:
           cat > cvc5-wrapper.sh <<'SH'
           #!/usr/bin/env bash
           set -euo pipefail
-          exec ./cvc5-Linux-x86_64-static/bin/cvc5 --lang=smt2 --solve-bv-as-int="$INTEGER_MODE" "$@"
+          cp "$1" last-query.smt2
+          ./cvc5-Linux-x86_64-static/bin/cvc5 --lang=smt2 --solve-bv-as-int="$INTEGER_MODE" "$@" \
+            | tee >(awk '/^(sat|unsat|unknown)$/ { print; fflush(); }' >> solver-decisions.txt)
           SH
           chmod +x cvc5-wrapper.sh
       - name: Check every scaling property with integer arithmetic
@@ -289,3 +302,5 @@ jobs:
           path: |
             integer-smt.json
             integer-smt.stderr
+            solver-decisions.txt
+            last-query.smt2
