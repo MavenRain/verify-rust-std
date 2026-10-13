@@ -103,7 +103,9 @@ jobs:
           elif [[ "$HARNESS_GROUP" == scaling-* || "$HARNESS_GROUP" == normalization-scaling-* ]]; then
             echo num::imp::flt2dec::strategy::grisu::grisu_verify::check_scale_shortest_73 > harnesses.txt
           elif [[ "$HARNESS_GROUP" == arithmetic-* ]]; then
-            if [[ "$HARNESS_GROUP" == *scaling-full* ]]; then
+            if [[ "$HARNESS_GROUP" == *grisu-generator* ]]; then
+              echo num::imp::flt2dec::strategy::grisu::grisu_verify::f64_exp_1023::check_format_shortest_opt > harnesses.txt
+            elif [[ "$HARNESS_GROUP" == *scaling-full* ]]; then
               echo num::imp::flt2dec::strategy::grisu::grisu_verify::check_scale_shortest_73 > harnesses.txt
             elif [[ "$HARNESS_GROUP" == *interval* ]]; then
               echo num::imp::flt2dec::strategy::grisu::grisu_verify::check_scaling_interval_73 > harnesses.txt
