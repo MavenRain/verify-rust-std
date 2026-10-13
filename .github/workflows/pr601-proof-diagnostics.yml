@@ -67,7 +67,11 @@ jobs:
           if [[ "$HARNESS_GROUP" == scaling-* || "$HARNESS_GROUP" == normalization-scaling-* ]]; then
             echo num::imp::flt2dec::strategy::grisu::grisu_verify::check_scale_shortest_73 > harnesses.txt
           elif [[ "$HARNESS_GROUP" == arithmetic-* ]]; then
-            echo num::imp::flt2dec::strategy::grisu::grisu_verify::check_scaling_arithmetic_73 > harnesses.txt
+            if [[ "$HARNESS_GROUP" == *interval* ]]; then
+              echo num::imp::flt2dec::strategy::grisu::grisu_verify::check_scaling_interval_73 > harnesses.txt
+            else
+              echo num::imp::flt2dec::strategy::grisu::grisu_verify::check_scaling_arithmetic_73 > harnesses.txt
+            fi
           elif [[ "$HARNESS_GROUP" == exact-digits-* ]]; then
             echo "num::imp::flt2dec::strategy::dragon::dragon_verify::check_format_exact_${HARNESS_GROUP##*-}_digits" > harnesses.txt
           else
@@ -121,6 +125,7 @@ jobs:
             target/kani_verify_std/target/**/out/*check_scale_shortest_73.out
             target/kani_verify_std/target/**/out/*check_normalize_shortest.out
             target/kani_verify_std/target/**/out/*check_scaling_arithmetic_73.out
+            target/kani_verify_std/target/**/out/*check_scaling_interval_73.out
           if-no-files-found: ignore
 
   scaling-properties:

@@ -1002,17 +1002,7 @@ pub mod grisu_verify {
         (plus.f, minus.f, v.f, plus.e, minusk)
     }
 
-    // This diagnostic isolates rounded products from float decoding and normalization.
-    #[kani::proof]
-    #[kani::solver(kissat)]
-    #[cfg_attr(
-        target_pointer_width = "64",
-        kani::stub(
-            u64::carrying_mul,
-            crate::num::imp::flt2dec::strategy::dragon::dragon_verify::carrying_mul_model
-        )
-    )]
-    fn check_scaling_arithmetic_73() {
+    fn scaling_arithmetic_73_input() -> (u64, u64, u64, i16, bool) {
         let v = kani::any::<u64>();
         let gap = kani::any::<u64>();
         let asymmetric = kani::any::<bool>();
@@ -1033,11 +1023,50 @@ pub mod grisu_verify {
         let plus = Fp { f: plus, e: 0 }.mul(cached).f;
         let minus = Fp { f: minus, e: 0 }.mul(cached).f;
         let v = Fp { f: v, e: 0 }.mul(cached).f;
+        (plus, minus, v, minusk, asymmetric)
+    }
+
+    // This diagnostic isolates rounded products from float decoding and normalization.
+    #[kani::proof]
+    #[kani::solver(kissat)]
+    #[cfg_attr(
+        target_pointer_width = "64",
+        kani::stub(
+            u64::carrying_mul,
+            crate::num::imp::flt2dec::strategy::dragon::dragon_verify::carrying_mul_model
+        )
+    )]
+    fn check_scaling_arithmetic_73() {
+        let (plus, minus, v, minusk, asymmetric) = scaling_arithmetic_73_input();
         let exp = ALPHA + i16::from(kani::any::<u8>() & 31);
         kani::assume(exp <= GAMMA);
         assert!(shortest_scaling_valid((plus, minus, v, exp, minusk)));
         kani::cover(asymmetric, "arithmetic includes asymmetric intervals");
         kani::cover(!asymmetric, "arithmetic includes symmetric intervals");
+    }
+
+    #[kani::proof]
+    #[kani::solver(kissat)]
+    #[cfg_attr(
+        target_pointer_width = "64",
+        kani::stub(
+            u64::carrying_mul,
+            crate::num::imp::flt2dec::strategy::dragon::dragon_verify::carrying_mul_model
+        )
+    )]
+    fn check_scaling_interval_73() {
+        let (plus, minus, v, _, asymmetric) = scaling_arithmetic_73_input();
+        assert!(plus >= 1 << 62 && plus < u64::MAX);
+        assert!(minus > 1 && minus <= v && v <= plus);
+        let upper = plus + 1;
+        let delta = upper - (minus - 1);
+        assert!(delta >= 4);
+        assert!((delta as u128) << 53 >= upper as u128);
+        assert!(4 * (upper - v) as u128 <= 3 * delta as u128);
+        assert!(4 * (v - (minus - 1)) as u128 <= 3 * delta as u128);
+        assert!(2 * ((plus - v) as u128) < delta as u128 || (minus - 1) & 0xffff != 0);
+        kani::cover(asymmetric, "interval includes asymmetric inputs");
+        kani::cover(!asymmetric, "interval includes symmetric inputs");
     }
 
     fn shortest_scaling_valid(state: (u64, u64, u64, i16, i16)) -> bool {
