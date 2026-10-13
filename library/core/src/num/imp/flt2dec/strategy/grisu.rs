@@ -1278,7 +1278,7 @@ pub mod grisu_verify {
     }
 
     macro_rules! check_scale_shortest_partition {
-        ($name:ident, $index_guide:ident, $group:literal) => {
+        ($name:ident, $index_guide:ident, $group:literal $(, $interval:literal)?) => {
             fn $index_guide(index: i32) -> i32 {
                 // Preserve the calculated index and expose its constant value.
                 assert_eq!(index, 80 - $group);
@@ -1313,6 +1313,7 @@ pub mod grisu_verify {
                 let mant = kani::any::<u64>() & ((1u64 << 55) - 1);
                 let minus = 1;
                 let plus = if kani::any::<bool>() { 1 } else { 2 };
+                $(kani::assume(plus == $interval);)?
                 kani::assume(mant >= 2);
                 kani::assume(plus == 1 || mant == 1 << 25 || mant == 1 << 54);
                 kani::assume(mant as u128 + plus as u128 <= ((minus as u128 + plus as u128) << 53));
@@ -1431,6 +1432,18 @@ pub mod grisu_verify {
     check_scale_shortest_partition!(check_scale_shortest_71, scaling_cache_index_71, 71);
     check_scale_shortest_partition!(check_scale_shortest_72, scaling_cache_index_72, 72);
     check_scale_shortest_partition!(check_scale_shortest_73, scaling_cache_index_73, 73);
+    check_scale_shortest_partition!(
+        check_scale_shortest_73_symmetric,
+        scaling_cache_index_73_symmetric,
+        73,
+        1
+    );
+    check_scale_shortest_partition!(
+        check_scale_shortest_73_asymmetric,
+        scaling_cache_index_73_asymmetric,
+        73,
+        2
+    );
     check_scale_shortest_partition!(check_scale_shortest_74, scaling_cache_index_74, 74);
     check_scale_shortest_partition!(check_scale_shortest_75, scaling_cache_index_75, 75);
     check_scale_shortest_partition!(check_scale_shortest_76, scaling_cache_index_76, 76);

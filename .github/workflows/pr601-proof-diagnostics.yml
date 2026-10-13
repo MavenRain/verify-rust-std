@@ -105,6 +105,10 @@ jobs:
           elif [[ "$HARNESS_GROUP" == arithmetic-* ]]; then
             if [[ "$HARNESS_GROUP" == *decimal* ]]; then
               echo num::imp::flt2dec::strategy::grisu::grisu_verify::check_decimal_termination > harnesses.txt
+            elif [[ "$HARNESS_GROUP" == *scaling-symmetric* ]]; then
+              echo num::imp::flt2dec::strategy::grisu::grisu_verify::check_scale_shortest_73_symmetric > harnesses.txt
+            elif [[ "$HARNESS_GROUP" == *scaling-asymmetric* ]]; then
+              echo num::imp::flt2dec::strategy::grisu::grisu_verify::check_scale_shortest_73_asymmetric > harnesses.txt
             elif [[ "$HARNESS_GROUP" == *grisu-generator* ]]; then
               echo num::imp::flt2dec::strategy::grisu::grisu_verify::f64_exp_1023::check_format_shortest_opt > harnesses.txt
             elif [[ "$HARNESS_GROUP" == *scaling-full* ]]; then

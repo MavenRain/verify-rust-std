@@ -379,7 +379,7 @@ pub fn format_exact<'a>(
                 && kani::mem::can_dereference(crate::ptr::slice_from_raw_parts(
                     buf.as_ptr().cast::<u8>(), kani::index
                 ))
-                && kani::forall!(|j in (0, kani::index)| unsafe {
+                && kani::internal::kani_forall(0usize, kani::index, |j| unsafe {
                     buf[j].assume_init() >= b'0' && buf[j].assume_init() <= b'9'
                 })
         ))]
