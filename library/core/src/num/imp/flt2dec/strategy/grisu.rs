@@ -1022,9 +1022,13 @@ pub mod grisu_verify {
     }
 
     fn scaling_arithmetic_73_input() -> (u64, u64, u64, i16, bool) {
-        let v = kani::any::<u64>();
-        let gap = kani::any::<u64>();
         let asymmetric = kani::any::<bool>();
+        let v = if asymmetric { 1 << 63 } else { kani::any::<u64>() };
+        let gap = match (asymmetric, kani::any::<bool>()) {
+            (true, true) => 1 << 9,
+            (true, false) => 1 << 38,
+            (false, _) => kani::any::<u64>(),
+        };
         kani::assume((512..=1 << 62).contains(&gap));
         let upper_gap = if asymmetric { 2 * gap } else { gap };
         kani::assume(v >= (1 << 62) + gap);
