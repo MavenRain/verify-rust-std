@@ -13,6 +13,14 @@ on:
         description: Optional JSON array of named diagnostic groups
         type: string
         default: ''
+      modes:
+        description: Optional JSON array of integer solver modes
+        type: string
+        default: ''
+      seconds:
+        description: Timeout for each direct SMT diagnostic, at most 2400 seconds
+        type: string
+        default: '600'
 
 permissions:
   contents: read
@@ -210,13 +218,14 @@ jobs:
   scaling-integer-smt:
     if: inputs.suite == 'properties' || inputs.suite == 'arithmetic-properties'
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
-        mode: [sum, iand, off]
+        mode: ${{ fromJSON(inputs.modes || '["sum","iand","off"]') }}
     env:
       INTEGER_MODE: ${{ matrix.mode }}
+      SOLVER_TIMEOUT: ${{ inputs.seconds || '600' }}
       INPUT_HARNESS: ${{ inputs.suite == 'arithmetic-properties' && 'check_scaling_arithmetic_73' || 'check_scale_shortest_73' }}
     steps:
       - uses: actions/checkout@v4
@@ -244,10 +253,11 @@ jobs:
           chmod +x cvc5-wrapper.sh
       - name: Check every scaling property with integer arithmetic
         run: |
+          [[ "$SOLVER_TIMEOUT" =~ ^[0-9]+$ && "$SOLVER_TIMEOUT" -gt 0 && "$SOLVER_TIMEOUT" -le 2400 ]]
           shopt -s globstar nullglob
           goto_files=(proof-input/**/*"$INPUT_HARNESS".out)
           [[ ${#goto_files[@]} == 1 ]]
-          timeout --kill-after=5 600 cbmc_build/bin/cbmc \
+          timeout --kill-after=5 "$SOLVER_TIMEOUT" cbmc_build/bin/cbmc \
             --no-malloc-may-fail --no-undefined-shift-check --no-signed-overflow-check \
             --nan-check --no-self-loops-to-assumptions --no-pointer-primitive-check \
             --slice-formula --object-bits 12 --symex-cache-dereferences \
