@@ -1091,6 +1091,8 @@ pub mod grisu_verify {
             crate::num::imp::flt2dec::strategy::dragon::dragon_verify::carrying_mul_model
         )
     )]
+    #[kani::stub_verified(rounded_multiply_contract)]
+    #[kani::stub(Fp::mul, stub_rounded_multiply)]
     fn check_scaling_arithmetic_73() {
         let (plus, minus, v, minusk, asymmetric) = scaling_arithmetic_73_input();
         let exp = ALPHA + i16::from(kani::any::<u8>() & 31);
@@ -1109,6 +1111,8 @@ pub mod grisu_verify {
             crate::num::imp::flt2dec::strategy::dragon::dragon_verify::carrying_mul_model
         )
     )]
+    #[kani::stub_verified(rounded_multiply_contract)]
+    #[kani::stub(Fp::mul, stub_rounded_multiply)]
     fn check_scaling_interval_73() {
         let (plus, minus, v, _, asymmetric) = scaling_arithmetic_73_input();
         assert!(plus >= 1 << 62 && plus < u64::MAX);
