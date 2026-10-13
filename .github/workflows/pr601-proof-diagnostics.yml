@@ -9,6 +9,10 @@ on:
         type: choice
         default: grid
         options: [grid, scaling, generators, properties, normalization, arithmetic, grisu-generators, arithmetic-properties, exact-digits]
+      groups:
+        description: Optional JSON array of named diagnostic groups
+        type: string
+        default: ''
 
 permissions:
   contents: read
@@ -22,7 +26,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        group: ${{ fromJSON(inputs.suite == 'exact-digits' && '["exact-digits-16","exact-digits-32"]' || inputs.suite == 'grisu-generators' && '["grisu-shortest-fixed-exponent","grisu-shortest-cached-power-39"]' || inputs.suite == 'arithmetic' && '["arithmetic-kissat","arithmetic-smt-sum","arithmetic-smt-off"]' || inputs.suite == 'normalization' && '["grisu-shortest-normalization-contract","normalization-scaling-kissat","normalization-scaling-smt"]' || inputs.suite == 'generators' && '["dragon-shortest-fixed-exponent","dragon-exact-fixed-exponent"]' || inputs.suite == 'scaling' && '["scaling-profile","scaling-refinement","scaling-flat-smt"]' || '["bigint-shift-equivalence-000-031","bigint-shift-equivalence-032-063","bigint-shift-equivalence-064-095","bigint-shift-equivalence-096-127","bigint-shift-equivalence-128-159","bigint-shift-equivalence-160-191","bigint-shift-equivalence-192-223","bigint-shift-equivalence-224-229","scaling-profile"]') }}
+        group: ${{ fromJSON(inputs.groups || inputs.suite == 'exact-digits' && '["exact-digits-16","exact-digits-32"]' || inputs.suite == 'grisu-generators' && '["grisu-shortest-fixed-exponent","grisu-shortest-cached-power-39"]' || inputs.suite == 'arithmetic' && '["arithmetic-kissat","arithmetic-smt-sum","arithmetic-smt-off"]' || inputs.suite == 'normalization' && '["grisu-shortest-normalization-contract","normalization-scaling-kissat","normalization-scaling-smt"]' || inputs.suite == 'generators' && '["dragon-shortest-fixed-exponent","dragon-exact-fixed-exponent"]' || inputs.suite == 'scaling' && '["scaling-profile","scaling-refinement","scaling-flat-smt"]' || '["bigint-shift-equivalence-000-031","bigint-shift-equivalence-032-063","bigint-shift-equivalence-064-095","bigint-shift-equivalence-096-127","bigint-shift-equivalence-128-159","bigint-shift-equivalence-160-191","bigint-shift-equivalence-192-223","bigint-shift-equivalence-224-229","scaling-profile"]') }}
     env:
       CARGO_BUILD_JOBS: 2
       RAYON_NUM_THREADS: 1

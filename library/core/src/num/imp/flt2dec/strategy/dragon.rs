@@ -1733,7 +1733,11 @@ pub mod dragon_verify {
         (sum as Digit, (sum >> Digit::BITS) as Digit)
     }
 
-    fn carrying_mul_model(digit: Digit, multiplier: Digit, carry: Digit) -> (Digit, Digit) {
+    pub(crate) fn carrying_mul_model(
+        digit: Digit,
+        multiplier: Digit,
+        carry: Digit,
+    ) -> (Digit, Digit) {
         carrying_mul_add_model(digit, multiplier, carry, 0)
     }
 

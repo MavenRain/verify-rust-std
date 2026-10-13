@@ -1005,6 +1005,13 @@ pub mod grisu_verify {
     // This diagnostic isolates rounded products from float decoding and normalization.
     #[kani::proof]
     #[kani::solver(kissat)]
+    #[cfg_attr(
+        target_pointer_width = "64",
+        kani::stub(
+            u64::carrying_mul,
+            crate::num::imp::flt2dec::strategy::dragon::dragon_verify::carrying_mul_model
+        )
+    )]
     fn check_scaling_arithmetic_73() {
         let v = kani::any::<u64>();
         let gap = kani::any::<u64>();
@@ -1124,6 +1131,13 @@ pub mod grisu_verify {
 
             #[kani::proof_for_contract(scale_shortest_contract)]
             #[kani::stub_verified(normalize_shortest_contract)]
+            #[cfg_attr(
+                target_pointer_width = "64",
+                kani::stub(
+                    u64::carrying_mul,
+                    crate::num::imp::flt2dec::strategy::dragon::dragon_verify::carrying_mul_model
+                )
+            )]
             #[kani::stub(proof_cached_power_index, $index_guide)]
             #[kani::stub(
                 u64::leading_zeros,
