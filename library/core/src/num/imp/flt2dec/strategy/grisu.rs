@@ -1021,6 +1021,38 @@ pub mod grisu_verify {
         (plus.f, minus.f, v.f, plus.e, minusk)
     }
 
+    fn rounded_product_wide(f: u64, coefficient: u64) -> u128 {
+        (f as u128).wrapping_mul(coefficient as u128).wrapping_add(1 << 63)
+    }
+
+    #[kani::ensures(|result| *result < u64::MAX
+        && ((*result as u128) << 64) <= rounded_product_wide(f, coefficient)
+        && rounded_product_wide(f, coefficient) < ((*result as u128 + 1) << 64))]
+    fn rounded_multiply_contract(f: u64, coefficient: u64) -> u64 {
+        Fp { f, e: 0 }.mul(Fp { f: coefficient, e: 0 }).f
+    }
+
+    fn stub_rounded_multiply(value: Fp, coefficient: Fp) -> Fp {
+        Fp { f: rounded_multiply_contract(value.f, coefficient.f), e: value.e + coefficient.e + 64 }
+    }
+
+    #[kani::proof_for_contract(rounded_multiply_contract)]
+    #[kani::solver(kissat)]
+    #[cfg_attr(
+        target_pointer_width = "64",
+        kani::stub(
+            u64::carrying_mul,
+            crate::num::imp::flt2dec::strategy::dragon::dragon_verify::carrying_mul_model
+        )
+    )]
+    fn check_rounded_multiply() {
+        let f = kani::any::<u64>();
+        let coefficient = kani::any::<u64>();
+        let result = rounded_multiply_contract(f, coefficient);
+        kani::cover(f == 0 && coefficient == 0 && result == 0, "zero products are covered");
+        kani::cover(f == u64::MAX && coefficient == u64::MAX, "maximum product is covered");
+    }
+
     fn scaling_arithmetic_73_input() -> (u64, u64, u64, i16, bool) {
         let asymmetric = kani::any::<bool>();
         let v = if asymmetric { 1 << 63 } else { kani::any::<u64>() };
@@ -1206,6 +1238,8 @@ pub mod grisu_verify {
 
             #[kani::proof_for_contract(scale_shortest_contract)]
             #[kani::stub_verified(normalize_shortest_contract)]
+            #[kani::stub_verified(rounded_multiply_contract)]
+            #[kani::stub(Fp::mul, stub_rounded_multiply)]
             #[cfg_attr(
                 target_pointer_width = "64",
                 kani::stub(

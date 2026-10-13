@@ -98,7 +98,9 @@ jobs:
           key: cbmc-flat-smt-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('scripts/setup-flat-smt-cbmc.sh') }}
       - name: Select proof cases
         run: |
-          if [[ "$HARNESS_GROUP" == scaling-* || "$HARNESS_GROUP" == normalization-scaling-* ]]; then
+          if [[ "$HARNESS_GROUP" == rounded-multiply ]]; then
+            echo num::imp::flt2dec::strategy::grisu::grisu_verify::check_rounded_multiply > harnesses.txt
+          elif [[ "$HARNESS_GROUP" == scaling-* || "$HARNESS_GROUP" == normalization-scaling-* ]]; then
             echo num::imp::flt2dec::strategy::grisu::grisu_verify::check_scale_shortest_73 > harnesses.txt
           elif [[ "$HARNESS_GROUP" == arithmetic-* ]]; then
             if [[ "$HARNESS_GROUP" == *scaling-full* ]]; then
