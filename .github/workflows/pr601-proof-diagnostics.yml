@@ -8,13 +8,15 @@ on:
       suite:
         type: choice
         default: grid
-        options: [grid, scaling, generators]
+        options: [grid, scaling, generators, properties]
 
 permissions:
   contents: read
+  actions: read
 
 jobs:
   proofs:
+    if: inputs.suite != 'properties'
     runs-on: ubuntu-latest
     timeout-minutes: 90
     strategy:
@@ -95,3 +97,81 @@ jobs:
             cbmc-stack.txt
             target/kani_verify_std/target/**/out/*check_scale_shortest_73.out
           if-no-files-found: ignore
+
+  scaling-properties:
+    if: inputs.suite == 'properties'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3]
+    env:
+      PROPERTY_SHARD: ${{ matrix.shard }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache/restore@v4
+        with:
+          path: cbmc_build/bin
+          key: cbmc-flat-smt-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('scripts/setup-flat-smt-cbmc.sh') }}
+          fail-on-cache-miss: true
+      - uses: actions/download-artifact@v4
+        with:
+          name: proof-log-scaling-profile
+          run-id: 38445736924
+          github-token: ${{ github.token }}
+          path: proof-input
+      - name: Select diagnostic assertions
+        run: |
+          shopt -s globstar nullglob
+          goto_files=(proof-input/**/*check_scale_shortest_73.out)
+          [[ ${#goto_files[@]} == 1 ]]
+          cp "${goto_files[0]}" scaling.out
+          cbmc_build/bin/cbmc --show-properties --json-ui scaling.out > properties.json
+          python3 -I - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          records = json.loads(Path('properties.json').read_text())
+          properties = next(record['properties'] for record in records if 'properties' in record)
+          selected = [prop['name'] for prop in properties
+                      if 'scale_shortest_contract' in prop['sourceLocation'].get('function', '')
+                      and (prop['description'].startswith('assertion failed:')
+                           or 'postcondition' in prop['description'].lower()
+                           or 'post-condition' in prop['description'].lower())]
+          shard = int(os.environ['PROPERTY_SHARD'])
+          chosen = selected[shard::4]
+          assert chosen, (shard, selected)
+          Path('selected-properties.txt').write_text('\n'.join(chosen) + '\n')
+          print(f'Selected {len(chosen)} of {len(selected)} diagnostic properties')
+          PY
+      - name: Time individual assertions
+        run: |
+          mkdir property-results
+          failed=0
+          index=0
+          while IFS= read -r property; do
+            index=$((index + 1))
+            set +e
+            timeout --kill-after=5 90 cbmc_build/bin/cbmc \
+              --no-malloc-may-fail --no-undefined-shift-check --no-signed-overflow-check \
+              --nan-check --no-self-loops-to-assumptions --no-pointer-primitive-check \
+              --slice-formula --object-bits 12 --symex-cache-dereferences \
+              --property "$property" --verbosity 9 --json-ui scaling.out \
+              > "property-results/$index.json" 2> "property-results/$index.stderr"
+            result=$?
+            set -e
+            printf '%s\t%s\n' "$result" "$property" | tee -a property-summary.tsv
+            if [[ $result != 0 ]]; then failed=1; fi
+          done < selected-properties.txt
+          exit "$failed"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: scaling-properties-${{ matrix.shard }}
+          path: |
+            properties.json
+            selected-properties.txt
+            property-summary.tsv
+            property-results
