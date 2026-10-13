@@ -8,7 +8,7 @@ on:
       suite:
         type: choice
         default: grid
-        options: [grid, scaling, generators, properties, normalization, arithmetic, grisu-generators, arithmetic-properties]
+        options: [grid, scaling, generators, properties, normalization, arithmetic, grisu-generators, arithmetic-properties, exact-digits]
 
 permissions:
   contents: read
@@ -22,14 +22,14 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        group: ${{ fromJSON(inputs.suite == 'grisu-generators' && '["grisu-shortest-fixed-exponent","grisu-shortest-cached-power-39"]' || inputs.suite == 'arithmetic' && '["arithmetic-kissat","arithmetic-smt-sum","arithmetic-smt-off"]' || inputs.suite == 'normalization' && '["grisu-shortest-normalization-contract","normalization-scaling-kissat","normalization-scaling-smt"]' || inputs.suite == 'generators' && '["dragon-shortest-fixed-exponent","dragon-exact-fixed-exponent"]' || inputs.suite == 'scaling' && '["scaling-profile","scaling-refinement","scaling-flat-smt"]' || '["bigint-shift-equivalence-000-031","bigint-shift-equivalence-032-063","bigint-shift-equivalence-064-095","bigint-shift-equivalence-096-127","bigint-shift-equivalence-128-159","bigint-shift-equivalence-160-191","bigint-shift-equivalence-192-223","bigint-shift-equivalence-224-229","scaling-profile"]') }}
+        group: ${{ fromJSON(inputs.suite == 'exact-digits' && '["exact-digits-16","exact-digits-32"]' || inputs.suite == 'grisu-generators' && '["grisu-shortest-fixed-exponent","grisu-shortest-cached-power-39"]' || inputs.suite == 'arithmetic' && '["arithmetic-kissat","arithmetic-smt-sum","arithmetic-smt-off"]' || inputs.suite == 'normalization' && '["grisu-shortest-normalization-contract","normalization-scaling-kissat","normalization-scaling-smt"]' || inputs.suite == 'generators' && '["dragon-shortest-fixed-exponent","dragon-exact-fixed-exponent"]' || inputs.suite == 'scaling' && '["scaling-profile","scaling-refinement","scaling-flat-smt"]' || '["bigint-shift-equivalence-000-031","bigint-shift-equivalence-032-063","bigint-shift-equivalence-064-095","bigint-shift-equivalence-096-127","bigint-shift-equivalence-128-159","bigint-shift-equivalence-160-191","bigint-shift-equivalence-192-223","bigint-shift-equivalence-224-229","scaling-profile"]') }}
     env:
       CARGO_BUILD_JOBS: 2
       RAYON_NUM_THREADS: 1
       KANI_JOBS: 1
       KANI_PATCHED_CBMC: 'true'
-      KANI_OBJECT_BITS: ${{ (inputs.suite == 'generators' || inputs.suite == 'grisu-generators') && '14' || '12' }}
-      PROOF_TIMEOUT: ${{ inputs.suite == 'generators' && '3600s' || inputs.suite == 'grisu-generators' && '1800s' || '420s' }}
+      KANI_OBJECT_BITS: ${{ (inputs.suite == 'generators' || inputs.suite == 'grisu-generators' || inputs.suite == 'exact-digits') && '14' || '12' }}
+      PROOF_TIMEOUT: ${{ inputs.suite == 'generators' && '3600s' || (inputs.suite == 'grisu-generators' || inputs.suite == 'exact-digits') && '1800s' || '420s' }}
       KANI_SYMEX_CACHE_DEREFERENCES: 'true'
       KANI_ARRAY_FIELD_SENSITIVITY: 'true'
       HARNESS_GROUP: ${{ matrix.group }}
@@ -64,6 +64,8 @@ jobs:
             echo num::imp::flt2dec::strategy::grisu::grisu_verify::check_scale_shortest_73 > harnesses.txt
           elif [[ "$HARNESS_GROUP" == arithmetic-* ]]; then
             echo num::imp::flt2dec::strategy::grisu::grisu_verify::check_scaling_arithmetic_73 > harnesses.txt
+          elif [[ "$HARNESS_GROUP" == exact-digits-* ]]; then
+            echo "num::imp::flt2dec::strategy::dragon::dragon_verify::check_format_exact_${HARNESS_GROUP##*-}_digits" > harnesses.txt
           else
             python3 -I scripts/kani-std-analysis/flt2dec_harnesses.py --group "$HARNESS_GROUP" > harnesses.txt
           fi

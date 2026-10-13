@@ -2172,6 +2172,80 @@ pub mod dragon_verify {
         };
     }
 
+    fn diagnostic_unit_pow10(n: usize) -> usize {
+        checked_pow10_unit::<1023>(n)
+    }
+
+    fn diagnostic_unit_pow2(bits: usize) -> usize {
+        let encoded = bits & 63;
+        assert_eq!(encoded, bits);
+        encoded
+    }
+
+    macro_rules! check_exact_fixed_digits {
+        ($name:ident, $digits:literal) => {
+            #[kani::proof]
+            #[kani::unwind(33)]
+            #[kani::solver(kissat)]
+            #[kani::stub(crate::num::imp::bignum::kani_loop_size, unit_exact_limb_count)]
+            #[kani::stub(Big::add, Big::kani_add_model)]
+            #[kani::stub(Big::sub, Big::kani_sub_model)]
+            #[kani::stub(Big::mul_small, Big::kani_mul_small_model)]
+            #[kani::stub(Big::mul_pow2, Big::kani_mul_pow2_model)]
+            #[kani::stub(proof_pow10_exponent, diagnostic_unit_pow10)]
+            #[kani::stub(crate::num::imp::bignum::kani_pow2_bits, diagnostic_unit_pow2)]
+            #[cfg_attr(
+                target_pointer_width = "64",
+                kani::stub(u64::carrying_mul, carrying_mul_model)
+            )]
+            #[cfg_attr(
+                target_pointer_width = "64",
+                kani::stub(u64::carrying_mul_add, carrying_mul_add_model)
+            )]
+            #[cfg_attr(
+                any(target_pointer_width = "16", target_pointer_width = "32"),
+                kani::stub(u32::carrying_mul, carrying_mul_model)
+            )]
+            #[cfg_attr(
+                any(target_pointer_width = "16", target_pointer_width = "32"),
+                kani::stub(u32::carrying_mul_add, carrying_mul_add_model)
+            )]
+            #[kani::stub(
+                crate::num::imp::flt2dec::estimator::estimate_scaling_factor,
+                estimate_unit_scale
+            )]
+            #[kani::stub(
+                u64::leading_zeros,
+                crate::num::imp::flt2dec::bit_scan_verify::leading_zeros_u64
+            )]
+            #[kani::stub(
+                u32::leading_zeros,
+                crate::num::imp::flt2dec::bit_scan_verify::leading_zeros_u32
+            )]
+            #[kani::stub(<Big as crate::cmp::Ord>::cmp, stub_cmp)]
+            #[kani::stub(Big::is_zero, stub_is_zero)]
+            #[kani::stub(
+                crate::num::imp::flt2dec::round_up,
+                crate::num::imp::flt2dec::rounding_verify::stub_round_up
+            )]
+            #[kani::stub_verified(crate::num::imp::flt2dec::rounding_verify::round_up_contract)]
+            #[kani::stub(div_2pow10, stub_div_2pow10)]
+            #[kani::stub_verified(div_2pow10_contract)]
+            fn $name() {
+                let d = arbitrary_finite_f64_exponent::<1023>();
+                let mut buf = [const { MaybeUninit::uninit() }; $digits];
+                let start = buf.as_ptr().cast::<u8>();
+                let (digits, _) = format_exact(&d, &mut buf, i16::MIN);
+                assert!(digits.len() <= $digits);
+                assert_eq!(digits.as_ptr(), start);
+                kani::cover(digits.len() > 1, "fixed exact diagnostic produces multiple digits");
+            }
+        };
+    }
+
+    check_exact_fixed_digits!(check_format_exact_16_digits, 16);
+    check_exact_fixed_digits!(check_format_exact_32_digits, 32);
+
     for_each_finite_partition!(check_partition);
     // These inputs need fewer bigint limbs. Keep enough iterations for the
     // digit and rounding loops; unwinding assertions check every loop bound.
