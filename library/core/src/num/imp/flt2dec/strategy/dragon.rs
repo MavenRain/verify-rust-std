@@ -294,6 +294,10 @@ pub fn format_shortest<'a>(
     (unsafe { buf[..i].assume_init_ref() }, k)
 }
 
+fn fill_zeroes(buf: &mut [MaybeUninit<u8>]) {
+    buf.fill(MaybeUninit::new(b'0'));
+}
+
 /// The exact and fixed mode implementation for Dragon.
 pub fn format_exact<'a>(
     d: &Decoded,
@@ -365,9 +369,7 @@ pub fn format_exact<'a>(
             if mant.is_zero() {
                 // following digits are all zeroes, we stop here
                 // do *not* try to perform rounding! rather, fill remaining digits.
-                for c in &mut buf[i..len] {
-                    *c = MaybeUninit::new(b'0');
-                }
+                fill_zeroes(&mut buf[i..len]);
                 // SAFETY: we initialized that memory above.
                 return (unsafe { buf[..len].assume_init_ref() }, k);
             }
@@ -532,6 +534,48 @@ pub mod dragon_verify {
         assert!(actual.sub(&other) as *mut Big == actual_start);
         assert!(modeled.kani_sub_model(&other) as *mut Big == modeled_start);
         assert!(actual.kani_same_storage(&modeled));
+    }
+
+    fn fill_zeroes_model(buf: &mut [MaybeUninit<u8>]) {
+        assert!(buf.len() <= PROOF_BUFLEN);
+        // SAFETY: MaybeUninit<u8> has byte size and alignment. The mutable
+        // slice covers exactly buf.len() writable bytes, including an empty slice.
+        unsafe { crate::ptr::write_bytes(buf.as_mut_ptr(), b'0', buf.len()) };
+    }
+
+    #[kani::proof]
+    #[kani::unwind(33)]
+    #[kani::solver(kissat)]
+    fn check_fill_zeroes_model_agrees() {
+        let initial = kani::any::<[u8; PROOF_BUFLEN]>();
+        let mut actual = initial.map(MaybeUninit::new);
+        let mut modeled = initial.map(MaybeUninit::new);
+        let start = usize::from(kani::any::<u8>());
+        let end = usize::from(kani::any::<u8>());
+        kani::assume(start <= end && end <= PROOF_BUFLEN);
+        fill_zeroes(&mut actual[start..end]);
+        fill_zeroes_model(&mut modeled[start..end]);
+        macro_rules! compare_bytes {
+            ($($index:literal),+ $(,)?) => {
+                $(
+                    // SAFETY: Both arrays began initialized, and zero filling
+                    // preserves initialization of every byte.
+                    assert_eq!(unsafe { actual[$index].assume_init() }, unsafe {
+                        modeled[$index].assume_init()
+                    });
+                )+
+            };
+        }
+        compare_bytes!(
+            0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23,
+            24, 25, 26, 27, 28, 29, 30, 31
+        );
+        kani::cover(start == end, "zero filling accepts an empty slice");
+        kani::cover(start == 0 && end == PROOF_BUFLEN, "zero filling reaches every byte");
+        kani::cover(
+            start > 0 && end < PROOF_BUFLEN && start < end,
+            "zero filling preserves both edges",
+        );
     }
 
     fn check_mul_pow2_model_agrees<const SIZE: usize, const DIGITS: usize>() {
@@ -2154,6 +2198,7 @@ pub mod dragon_verify {
                     crate::num::imp::flt2dec::rounding_verify::stub_round_up
                 )]
                 #[kani::stub_verified(crate::num::imp::flt2dec::rounding_verify::round_up_contract)]
+                #[kani::stub(fill_zeroes, fill_zeroes_model)]
                 #[kani::stub(div_2pow10, stub_div_2pow10)]
                 #[kani::stub_verified(div_2pow10_contract)]
                 #[kani::solver(kissat)]
@@ -2233,6 +2278,7 @@ pub mod dragon_verify {
                 crate::num::imp::flt2dec::rounding_verify::stub_round_up
             )]
             #[kani::stub_verified(crate::num::imp::flt2dec::rounding_verify::round_up_contract)]
+            #[kani::stub(fill_zeroes, fill_zeroes_model)]
             #[kani::stub(div_2pow10, stub_div_2pow10)]
             #[kani::stub_verified(div_2pow10_contract)]
             fn $name() {
