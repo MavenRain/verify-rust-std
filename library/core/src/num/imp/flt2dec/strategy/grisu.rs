@@ -939,7 +939,18 @@ pub mod grisu_verify {
 
     pub(super) fn normalize_shortest_for_proof(d: &Decoded) -> (Fp, Fp, Fp) {
         let (plus, minus, v, e) = normalize_shortest_contract(d.mant, d.minus, d.plus, d.exp);
-        (Fp { f: plus, e }, Fp { f: minus, e }, Fp { f: v, e })
+        let (guided_plus, guided_minus, guided_v) = if d.plus == 1 {
+            let gap = v - minus;
+            (v + gap, v - gap, v)
+        } else {
+            let gap = if d.mant == 1 << 25 { 1u64 << 38 } else { 1u64 << 9 };
+            ((1 << 63) + 2 * gap, (1 << 63) - gap, 1 << 63)
+        };
+        // Check the reconstruction before exposing its shared arithmetic.
+        assert_eq!(guided_plus, plus);
+        assert_eq!(guided_minus, minus);
+        assert_eq!(guided_v, v);
+        (Fp { f: guided_plus, e }, Fp { f: guided_minus, e }, Fp { f: guided_v, e })
     }
 
     #[kani::proof_for_contract(normalize_shortest_contract)]
@@ -998,6 +1009,11 @@ pub mod grisu_verify {
         assert!((delta as u128) << 53 >= upper as u128);
         assert!(4 * (upper - v.f) as u128 <= 3 * delta as u128);
         assert!(4 * (v.f - (minus.f - 1)) as u128 <= 3 * delta as u128);
+        if d.plus == 1 {
+            assert!(2 * ((plus.f - v.f) as u128) < delta as u128);
+        } else {
+            assert!((minus.f - 1) & ((1u64 << (e - 16)) - 1) != 0);
+        }
         assert!(
             2 * ((plus.f - v.f) as u128) < delta as u128
                 || (minus.f - 1) & ((1u64 << (e - 16)) - 1) != 0
