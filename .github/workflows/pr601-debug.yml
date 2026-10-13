@@ -16,7 +16,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: 8c176097572a1c474b2309fd62ecd505cae538a1
+          ref: 3d54ac2299dc0f4e06716264a1c73d7827635777
           submodules: recursive
       - name: Restore the pinned verifier
         id: verifier
@@ -52,12 +52,16 @@ jobs:
         proof:
           - dragon-exact
           - grisu-shortest
+          - grisu-cached-power-39
     env:
       CARGO_BUILD_JOBS: 1
+      KANI_FLAT_SMT_Z3: true
+      KANI_SYMEX_CACHE_DEREFERENCES: true
+      KANI_ARRAY_FIELD_SENSITIVITY: false
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: 8c176097572a1c474b2309fd62ecd505cae538a1
+          ref: 3d54ac2299dc0f4e06716264a1c73d7827635777
           submodules: recursive
 
       - name: Restore the pinned verifier
@@ -77,9 +81,12 @@ jobs:
             grisu-shortest)
               selected_harness=num::imp::flt2dec::strategy::grisu::grisu_verify::f32_00::check_format_shortest_opt
               ;;
+            grisu-cached-power-39)
+              selected_harness=num::imp::flt2dec::strategy::grisu::grisu_verify::f64_cached_power_39::check_format_shortest_opt
+              ;;
           esac
           scripts/run-kani.sh --kani-args --jobs 1 --harness-timeout 600s \
-            --solver z3 --output-format=terse --exact --harness "$selected_harness" \
+            --solver minisat --output-format=terse --exact --harness "$selected_harness" \
             2>&1 | tee focused-proof.log
 
       - name: Preserve verification logs
