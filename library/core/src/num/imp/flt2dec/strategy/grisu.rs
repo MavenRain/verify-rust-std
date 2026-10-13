@@ -1151,6 +1151,63 @@ pub mod grisu_verify {
         }
     }
 
+    fn decimal_scaled_delta(delta: u64, max_kappa: u8) -> u128 {
+        match max_kappa {
+            0 => delta as u128 * 10_000_000_000_000_000,
+            1 => delta as u128 * 1_000_000_000_000_000,
+            2 => delta as u128 * 100_000_000_000_000,
+            3 => delta as u128 * 10_000_000_000_000,
+            4 => delta as u128 * 1_000_000_000_000,
+            5 => delta as u128 * 100_000_000_000,
+            6 => delta as u128 * 10_000_000_000,
+            7 => delta as u128 * 1_000_000_000,
+            8 => delta as u128 * 100_000_000,
+            9 => delta as u128 * 10_000_000,
+            _ => 0,
+        }
+    }
+
+    fn decimal_minimum_upper(unit: u64, max_kappa: u8) -> u128 {
+        match max_kappa {
+            0 => unit as u128,
+            1 => unit as u128 * 10,
+            2 => unit as u128 * 100,
+            3 => unit as u128 * 1_000,
+            4 => unit as u128 * 10_000,
+            5 => unit as u128 * 100_000,
+            6 => unit as u128 * 1_000_000,
+            7 => unit as u128 * 10_000_000,
+            8 => unit as u128 * 100_000_000,
+            9 => unit as u128 * 1_000_000_000,
+            _ => u128::MAX,
+        }
+    }
+
+    #[kani::requires(max_kappa <= 9
+        && (delta as u128) << 53 >= decimal_minimum_upper(unit, max_kappa))]
+    #[kani::ensures(|result| *result == decimal_scaled_delta(delta, max_kappa)
+        && *result >= unit as u128)]
+    fn decimal_termination_contract(delta: u64, unit: u64, max_kappa: u8) -> u128 {
+        decimal_scaled_delta(delta, max_kappa)
+    }
+
+    #[kani::proof_for_contract(decimal_termination_contract)]
+    #[kani::solver(kissat)]
+    fn check_decimal_termination() {
+        let delta = kani::any::<u64>();
+        let unit = kani::any::<u64>();
+        let max_kappa = kani::any::<u8>();
+        kani::assume(max_kappa <= 9);
+        kani::assume((delta as u128) << 53 >= decimal_minimum_upper(unit, max_kappa));
+        decimal_termination_contract(delta, unit, max_kappa);
+        macro_rules! cover_decimal_cases {
+            ($($kappa:literal),+ $(,)?) => {
+                $(kani::cover(max_kappa == $kappa, concat!("decimal case ", stringify!($kappa)));)+
+            };
+        }
+        cover_decimal_cases!(0, 1, 2, 3, 4, 5, 6, 7, 8, 9);
+    }
+
     fn shortest_scaling_valid(state: (u64, u64, u64, i16, i16)) -> bool {
         let (plus, minus, v, exp, minusk) = state;
         exp >= ALPHA
@@ -1170,19 +1227,7 @@ pub mod grisu_verify {
                 // After max_kappa + 1 integral digits, this factor is the
                 // scale at digit 17. A threshold reaching 2^e exceeds every
                 // fractional remainder, so the real loop ends by that digit.
-                let scaled_delta: u128 = match max_kappa {
-                    0 => delta as u128 * 10_000_000_000_000_000,
-                    1 => delta as u128 * 1_000_000_000_000_000,
-                    2 => delta as u128 * 100_000_000_000_000,
-                    3 => delta as u128 * 10_000_000_000_000,
-                    4 => delta as u128 * 1_000_000_000_000,
-                    5 => delta as u128 * 100_000_000_000,
-                    6 => delta as u128 * 10_000_000_000,
-                    7 => delta as u128 * 1_000_000_000,
-                    8 => delta as u128 * 100_000_000,
-                    9 => delta as u128 * 10_000_000,
-                    _ => 0,
-                };
+                let scaled_delta = decimal_scaled_delta(delta, max_kappa);
                 // Normalization and multiplication preserve the relative
                 // interval width. Two outward ulps absorb their rounding
                 // errors. These postconditions must be proved in CI.
