@@ -70,7 +70,7 @@ jobs:
           path: diagnostic-input
       - name: Check the generated counter frame
         run: |
-          mapfile -t models < <(rg --files diagnostic-input | rg '\.out$')
+          mapfile -t models < <(rg --files --no-ignore diagnostic-input | rg '\.out$')
           [[ ${#models[@]} == 1 ]]
           ulimit -v 4194304
           set -o pipefail
