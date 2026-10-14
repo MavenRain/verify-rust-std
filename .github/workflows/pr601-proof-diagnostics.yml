@@ -195,7 +195,7 @@ jobs:
       RAYON_NUM_THREADS: 1
       KANI_JOBS: 1
       KANI_PATCHED_CBMC: 'true'
-      KANI_OBJECT_BITS: ${{ (matrix.group == 'dragon-loop-frame' || startsWith(matrix.group, 'grisu-shortest-single-') || startsWith(matrix.group, 'grisu-shortest-smt-')) && '10' || matrix.group == 'dragon-loop-instrumentation' && '11' || matrix.group == 'dragon-shortest-fixed-exponent' && '12' || (inputs.suite == 'generators' || inputs.suite == 'grisu-generators' || inputs.suite == 'exact-digits') && '14' || '12' }}
+      KANI_OBJECT_BITS: ${{ (matrix.group == 'dragon-loop-frame' || startsWith(matrix.group, 'grisu-shortest-single-') || startsWith(matrix.group, 'grisu-shortest-smt-')) && '10' || (matrix.group == 'dragon-loop-instrumentation' || startsWith(matrix.group, 'dragon-exact-single-')) && '11' || matrix.group == 'dragon-shortest-fixed-exponent' && '12' || (inputs.suite == 'generators' || inputs.suite == 'grisu-generators' || inputs.suite == 'exact-digits') && '14' || '12' }}
       PROOF_TIMEOUT: ${{ matrix.group == 'dragon-loop-frame' && '180s' || startsWith(matrix.group, 'grisu-shortest-single-') && '7200s' || inputs.suite == 'generators' && '3600s' || (inputs.suite == 'grisu-generators' || inputs.suite == 'exact-digits') && '1800s' || '420s' }}
       KANI_SYMEX_CACHE_DEREFERENCES: 'true'
       KANI_ARRAY_FIELD_SENSITIVITY: 'true'
@@ -250,6 +250,8 @@ jobs:
             echo num::imp::flt2dec::strategy::grisu::grisu_verify::f32_00::check_format_shortest_opt > harnesses.txt
           elif [[ "$HARNESS_GROUP" == grisu-invariant-encoding ]]; then
             echo num::imp::flt2dec::strategy::grisu::grisu_verify::check_fractional_invariant_encoding > harnesses.txt
+          elif [[ "$HARNESS_GROUP" =~ ^dragon-exact-single-(f32_0[0-3]|f64_([0-2][0-9]|3[01]))$ ]]; then
+            printf 'num::imp::flt2dec::strategy::dragon::dragon_verify::%s::check_format_exact\n' "${BASH_REMATCH[1]}" > harnesses.txt
           elif [[ "$HARNESS_GROUP" == dragon-digit-remainder ]]; then
             echo num::imp::flt2dec::strategy::dragon::dragon_verify::check_digit_remainder_contract > harnesses.txt
           elif [[ "$HARNESS_GROUP" == dragon-loop-instrumentation ]]; then
@@ -348,7 +350,7 @@ jobs:
           if [[ "$HARNESS_GROUP" == grisu-shortest-trace-31 ]]; then
             trace_args=(--export-json proof-results.json --concrete-playback print)
           fi
-          if [[ "$HARNESS_GROUP" == dragon-loop-instrumentation || "$HARNESS_GROUP" == dragon-shortest-fixed-exponent || "$HARNESS_GROUP" == grisu-shortest-smt-* ]]; then
+          if [[ "$HARNESS_GROUP" == dragon-loop-instrumentation || "$HARNESS_GROUP" == dragon-shortest-fixed-exponent || "$HARNESS_GROUP" == dragon-exact-single-* || "$HARNESS_GROUP" == grisu-shortest-smt-* ]]; then
             ulimit -v 8388608
           elif [[ "$HARNESS_GROUP" == dragon-loop-frame ]]; then
             # Keep the runner alive to upload the model when instrumentation grows.
