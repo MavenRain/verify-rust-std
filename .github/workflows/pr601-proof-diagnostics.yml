@@ -195,7 +195,7 @@ jobs:
       RAYON_NUM_THREADS: 1
       KANI_JOBS: 1
       KANI_PATCHED_CBMC: 'true'
-      KANI_OBJECT_BITS: ${{ (matrix.group == 'dragon-loop-frame' || startsWith(matrix.group, 'grisu-shortest-single-') || startsWith(matrix.group, 'grisu-shortest-smt-')) && '10' || (matrix.group == 'dragon-loop-instrumentation' || matrix.group == 'dragon-shortest-fixed-exponent') && '12' || (inputs.suite == 'generators' || inputs.suite == 'grisu-generators' || inputs.suite == 'exact-digits') && '14' || '12' }}
+      KANI_OBJECT_BITS: ${{ (matrix.group == 'dragon-loop-frame' || startsWith(matrix.group, 'grisu-shortest-single-') || startsWith(matrix.group, 'grisu-shortest-smt-')) && '10' || matrix.group == 'dragon-loop-instrumentation' && '11' || matrix.group == 'dragon-shortest-fixed-exponent' && '12' || (inputs.suite == 'generators' || inputs.suite == 'grisu-generators' || inputs.suite == 'exact-digits') && '14' || '12' }}
       PROOF_TIMEOUT: ${{ matrix.group == 'dragon-loop-frame' && '180s' || startsWith(matrix.group, 'grisu-shortest-single-') && '7200s' || inputs.suite == 'generators' && '3600s' || (inputs.suite == 'grisu-generators' || inputs.suite == 'exact-digits') && '1800s' || '420s' }}
       KANI_SYMEX_CACHE_DEREFERENCES: 'true'
       KANI_ARRAY_FIELD_SENSITIVITY: 'true'

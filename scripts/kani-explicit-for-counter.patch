@@ -1,8 +1,11 @@
 diff --git a/kani-compiler/src/codegen_cprover_gotoc/codegen/statement.rs b/kani-compiler/src/codegen_cprover_gotoc/codegen/statement.rs
 --- a/kani-compiler/src/codegen_cprover_gotoc/codegen/statement.rs
 +++ b/kani-compiler/src/codegen_cprover_gotoc/codegen/statement.rs
-@@ -165,6 +165,23 @@
+@@ -163,8 +163,26 @@
+                 if localname.contains("kani_loop_modifies") {
+                     let assigns = self.rvalue_to_assign_targets(rhs, location);
                      self.current_loop_modifies = assigns.clone();
++                    self.current_for_pattern_initialized = false;
                      return Stmt::skip(location);
                  }
 +                // A for-loop's synthetic counter is created after its explicit
@@ -25,12 +28,12 @@ diff --git a/kani-compiler/src/codegen_cprover_gotoc/codegen/statement.rs b/kani
                  if localname.contains("kani_loop_decreases") {
                      if !self
                          .queries
-@@ -768,6 +785,33 @@
+@@ -768,6 +786,34 @@
      ) -> Stmt {
          debug!(?func, ?args, ?destination, ?span, "codegen_funcall");
          let instance_opt = self.get_instance(func);
-+        // The pattern can be lowered to either first or nth. Only include its
-+        // destination while the generated counter marks an explicit for-frame.
++        // A generated for-loop initializes its pattern before entering the
++        // loop. Add that local once, while its counter identifies the frame.
 +        let synthetic_for_frame = self.current_loop_modifies.iter().any(|target| {
 +            matches!(
 +                target.value(),
@@ -39,13 +42,13 @@ diff --git a/kani-compiler/src/codegen_cprover_gotoc/codegen/statement.rs b/kani
 +                        .is_some_and(|name| name.starts_with("kani_index_"))
 +            )
 +        });
-+        if synthetic_for_frame
++        if !self.current_for_pattern_initialized
++            && synthetic_for_frame
 +            && let TyKind::RigidTy(RigidTy::FnDef(def, _)) = self.operand_ty_stable(func).kind()
 +        {
 +            let callee = def.name();
-+            tracing::info!("explicit for-frame initializer: {callee}");
-+            if callee.contains("KaniIter")
-+                && (callee.ends_with("::first") || callee.ends_with("::nth"))
++            if callee == "kani::KaniIter::first"
++                || callee.ends_with("::kani::KaniIter::first")
 +            {
 +                let location = self.codegen_span_stable(span);
 +                let pattern = unwrap_or_return_codegen_unimplemented_stmt!(
@@ -54,8 +57,28 @@ diff --git a/kani-compiler/src/codegen_cprover_gotoc/codegen/statement.rs b/kani
 +                )
 +                .goto_expr;
 +                self.current_loop_modifies.push(pattern);
++                self.current_for_pattern_initialized = true;
 +            }
 +        }
          if let Some(instance) = instance_opt
              && matches!(instance.kind, InstanceKind::LlvmIntrinsic)
          {
+diff --git a/kani-compiler/src/codegen_cprover_gotoc/context/goto_ctx.rs b/kani-compiler/src/codegen_cprover_gotoc/context/goto_ctx.rs
+--- a/kani-compiler/src/codegen_cprover_gotoc/context/goto_ctx.rs
++++ b/kani-compiler/src/codegen_cprover_gotoc/context/goto_ctx.rs
+@@ -96,6 +96,7 @@
+     pub has_loop_contracts: bool,
+     /// Track loop assign clause
+     pub current_loop_modifies: Vec<Expr>,
++    pub current_for_pattern_initialized: bool,
+     /// Track loop decreases clause
+     pub current_loop_decreases: Option<Expr>,
+ }
+@@ -129,6 +130,7 @@
+             transformer,
+             has_loop_contracts: false,
+             current_loop_modifies: Vec::new(),
++            current_for_pattern_initialized: false,
+             current_loop_decreases: None,
+         }
+     }
