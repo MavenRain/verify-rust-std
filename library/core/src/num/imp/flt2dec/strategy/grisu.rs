@@ -414,7 +414,7 @@ fn generate_shortest<'a>(d: &Decoded, buf: &'a mut [MaybeUninit<u8>]) -> Shortes
             && remainder < 1u64 << e
             && threshold <= remainder
             && ulp < 1u64 << 50
-            && threshold as u128 == delta1frac as u128 * (ulp & ((1u64 << 50) - 1)) as u128
+            && threshold as u128 == grisu_verify::proof_threshold(delta1frac, i - max_kappa as usize - 1)
             && ulp == grisu_verify::proof_power10(i - max_kappa as usize - 1)
             && (2 * ((plus.f - v.f) as u128) < delta1 as u128
                 || remainder.wrapping_sub(threshold)
@@ -457,26 +457,6 @@ fn generate_shortest<'a>(d: &Decoded, buf: &'a mut [MaybeUninit<u8>]) -> Shortes
             };
         }
 
-        #[cfg(kani)]
-        {
-            crate::kani::internal::check(i <= 16, "fractional digit capacity");
-            crate::kani::internal::check(ulp < 1u64 << 50, "fractional scale width");
-            crate::kani::internal::check(
-                ulp == grisu_verify::proof_power10(i - max_kappa as usize - 1),
-                "fractional power update",
-            );
-            crate::kani::internal::check(
-                threshold as u128 == delta1frac as u128 * ulp as u128,
-                "fractional threshold update",
-            );
-            crate::kani::internal::check(
-                2 * ((plus.f - v.f) as u128) < delta1 as u128
-                    || remainder.wrapping_sub(threshold)
-                        << ((64 - (e - 16 + (i - max_kappa as usize - 1))) as u8)
-                        != 0,
-                "fractional suffix update",
-            );
-        }
         // restore invariants
     }
 }
@@ -1016,6 +996,29 @@ pub mod grisu_verify {
         }
     }
 
+    pub(super) fn proof_threshold(delta: u64, exponent: usize) -> u128 {
+        // Keep multiplication inside each arm so every factor is constant.
+        match exponent {
+            0 => delta as u128,
+            1 => delta as u128 * 10,
+            2 => delta as u128 * 100,
+            3 => delta as u128 * 1_000,
+            4 => delta as u128 * 10_000,
+            5 => delta as u128 * 100_000,
+            6 => delta as u128 * 1_000_000,
+            7 => delta as u128 * 10_000_000,
+            8 => delta as u128 * 100_000_000,
+            9 => delta as u128 * 1_000_000_000,
+            10 => delta as u128 * 10_000_000_000,
+            11 => delta as u128 * 100_000_000_000,
+            12 => delta as u128 * 1_000_000_000_000,
+            13 => delta as u128 * 10_000_000_000_000,
+            14 => delta as u128 * 100_000_000_000_000,
+            15 => delta as u128 * 1_000_000_000_000_000,
+            _ => 0,
+        }
+    }
+
     #[kani::proof]
     fn check_fractional_invariant_encoding() {
         let exponent: usize = kani::any();
@@ -1025,12 +1028,13 @@ pub mod grisu_verify {
         let ulp: u64 = kani::any();
         let delta: u64 = kani::any();
         let threshold: u64 = kani::any();
+        assert_eq!(proof_threshold(delta, exponent), delta as u128 * power as u128);
         let original = threshold as u128 == delta as u128 * ulp as u128 && ulp == power;
         if ulp == power {
             assert_eq!(ulp, ulp & ((1u64 << 50) - 1));
         }
         let narrowed = ulp < 1u64 << 50
-            && threshold as u128 == delta as u128 * (ulp & ((1u64 << 50) - 1)) as u128
+            && threshold as u128 == proof_threshold(delta, exponent)
             && ulp == power;
         assert_eq!(original, narrowed);
 
