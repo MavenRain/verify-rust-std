@@ -232,7 +232,7 @@ jobs:
       RAYON_NUM_THREADS: 1
       KANI_JOBS: 1
       KANI_PATCHED_CBMC: 'true'
-      KANI_OBJECT_BITS: ${{ startsWith(matrix.group, 'dragon-mul-digits-equivalence') && '16' || (matrix.group == 'dragon-loop-frame' || startsWith(matrix.group, 'grisu-shortest-single-') || startsWith(matrix.group, 'grisu-shortest-smt-')) && '10' || (startsWith(matrix.group, 'dragon-exact-single-') || startsWith(matrix.group, 'dragon-exact-exponent-')) && '12' || (matrix.group == 'dragon-loop-instrumentation' || matrix.group == 'dragon-shortest-fixed-exponent') && '11' || (inputs.suite == 'generators' || inputs.suite == 'grisu-generators' || inputs.suite == 'exact-digits') && '14' || '12' }}
+      KANI_OBJECT_BITS: ${{ (startsWith(matrix.group, 'dragon-mul-digits-equivalence') || startsWith(matrix.group, 'dragon-mul-digits-native-')) && '16' || (matrix.group == 'dragon-loop-frame' || startsWith(matrix.group, 'grisu-shortest-single-') || startsWith(matrix.group, 'grisu-shortest-smt-')) && '10' || (startsWith(matrix.group, 'dragon-exact-single-') || startsWith(matrix.group, 'dragon-exact-exponent-')) && '12' || (matrix.group == 'dragon-loop-instrumentation' || matrix.group == 'dragon-shortest-fixed-exponent') && '11' || (inputs.suite == 'generators' || inputs.suite == 'grisu-generators' || inputs.suite == 'exact-digits') && '14' || '12' }}
       PROOF_TIMEOUT: ${{ (matrix.group == 'dragon-loop-frame' || startsWith(matrix.group, 'grisu-invariant-encoding-powers') || matrix.group == 'dragon-mul-digits-equivalence') && '180s' || startsWith(matrix.group, 'grisu-shortest-single-') && '7200s' || inputs.suite == 'generators' && '3600s' || (inputs.suite == 'grisu-generators' || inputs.suite == 'exact-digits') && '1800s' || '420s' }}
       KANI_SYMEX_CACHE_DEREFERENCES: 'true'
       KANI_ARRAY_FIELD_SENSITIVITY: 'true'
@@ -304,6 +304,8 @@ jobs:
             printf 'num::imp::flt2dec::strategy::dragon::dragon_verify::%s::check_format_exact\n' "${BASH_REMATCH[1]}" > harnesses.txt
           elif [[ "$HARNESS_GROUP" =~ ^dragon-exact-exponent-(1|2046)$ ]]; then
             printf 'num::imp::flt2dec::strategy::dragon::dragon_verify::f64_exp_%s::check_format_exact\n' "${BASH_REMATCH[1]}" > harnesses.txt
+          elif [[ "$HARNESS_GROUP" =~ ^dragon-exact-exponent-smt-(1|2046)$ ]]; then
+            printf 'num::imp::flt2dec::strategy::dragon::dragon_verify::f64_exp_%s::check_format_exact\n' "${BASH_REMATCH[1]}" > harnesses.txt
           elif [[ "$HARNESS_GROUP" == dragon-digit-remainder ]]; then
             echo num::imp::flt2dec::strategy::dragon::dragon_verify::check_digit_remainder_contract > harnesses.txt
           elif [[ "$HARNESS_GROUP" == dragon-loop-instrumentation ]]; then
@@ -313,6 +315,8 @@ jobs:
           elif [[ "$HARNESS_GROUP" == dragon-mul-digits-equivalence ]]; then
             printf 'num::imp::flt2dec::strategy::dragon::dragon_verify::check_mul_digits_pow5_%d\n' {16,32,64,128,256} > harnesses.txt
           elif [[ "$HARNESS_GROUP" =~ ^dragon-mul-digits-equivalence-(16|32|64|128|256)$ ]]; then
+            printf 'num::imp::flt2dec::strategy::dragon::dragon_verify::check_mul_digits_pow5_%s\n' "${BASH_REMATCH[1]}" > harnesses.txt
+          elif [[ "$HARNESS_GROUP" =~ ^dragon-mul-digits-native-(16|32|64|128|256)$ ]]; then
             printf 'num::imp::flt2dec::strategy::dragon::dragon_verify::check_mul_digits_pow5_%s\n' "${BASH_REMATCH[1]}" > harnesses.txt
           elif [[ "$HARNESS_GROUP" =~ ^dragon-scaled-sum-comparison-(zero|max)$ ]]; then
             printf 'num::imp::flt2dec::strategy::dragon::dragon_verify::check_scaled_sum_comparison_%s\n' "${BASH_REMATCH[1]}" > harnesses.txt
@@ -369,7 +373,7 @@ jobs:
             python3 -I scripts/kani-std-analysis/flt2dec_harnesses.py --group "$HARNESS_GROUP" > harnesses.txt
           fi
       - name: Install arithmetic diagnostic solver
-        if: startsWith(matrix.group, 'arithmetic-smt-') || startsWith(matrix.group, 'grisu-shortest-smt-') || startsWith(matrix.group, 'dragon-scaled-sum-comparison-smt') || startsWith(matrix.group, 'dragon-mul-digits-equivalence') || matrix.group == 'grisu-invariant-encoding-powers-smt' || matrix.group == 'grisu-threshold-step-smt'
+        if: startsWith(matrix.group, 'arithmetic-smt-') || startsWith(matrix.group, 'grisu-shortest-smt-') || startsWith(matrix.group, 'dragon-scaled-sum-comparison-smt') || startsWith(matrix.group, 'dragon-exact-exponent-smt-') || startsWith(matrix.group, 'dragon-mul-digits-equivalence') || matrix.group == 'grisu-invariant-encoding-powers-smt' || matrix.group == 'grisu-threshold-step-smt'
         run: |
           bash scripts/setup-cvc5.sh "$PWD/cvc5_build"
           KANI_CVC5_BINARY="$PWD/cvc5_build/bin/cvc5" bash scripts/kani-std-analysis/test_cvc5_flat_smt.sh
@@ -377,7 +381,7 @@ jobs:
           #!/usr/bin/env bash
           set -euo pipefail
           solver_mode=${HARNESS_GROUP##*-}
-          if [[ "$HARNESS_GROUP" == dragon-scaled-sum-comparison-smt* || "$HARNESS_GROUP" == dragon-mul-digits-equivalence* || "$HARNESS_GROUP" == grisu-invariant-encoding-powers-smt || "$HARNESS_GROUP" == grisu-threshold-step-smt ]]; then
+          if [[ "$HARNESS_GROUP" == dragon-scaled-sum-comparison-smt* || "$HARNESS_GROUP" == dragon-exact-exponent-smt-* || "$HARNESS_GROUP" == dragon-mul-digits-equivalence* || "$HARNESS_GROUP" == grisu-invariant-encoding-powers-smt || "$HARNESS_GROUP" == grisu-threshold-step-smt ]]; then
             solver_mode=sum
           fi
           exec ./cvc5_build/bin/cvc5 --lang=smt2 --solve-bv-as-int="$solver_mode" "$@"
@@ -410,7 +414,7 @@ jobs:
           while IFS= read -r harness; do
             harness_args+=(--harness "$harness")
           done < harnesses.txt
-          if [[ "$HARNESS_GROUP" == arithmetic-smt-* || "$HARNESS_GROUP" == grisu-shortest-smt-* || "$HARNESS_GROUP" == dragon-scaled-sum-comparison-smt* || "$HARNESS_GROUP" == dragon-mul-digits-equivalence* || "$HARNESS_GROUP" == grisu-invariant-encoding-powers-smt || "$HARNESS_GROUP" == grisu-threshold-step-smt ]]; then
+          if [[ "$HARNESS_GROUP" == arithmetic-smt-* || "$HARNESS_GROUP" == grisu-shortest-smt-* || "$HARNESS_GROUP" == dragon-scaled-sum-comparison-smt* || "$HARNESS_GROUP" == dragon-exact-exponent-smt-* || "$HARNESS_GROUP" == dragon-mul-digits-equivalence* || "$HARNESS_GROUP" == grisu-invariant-encoding-powers-smt || "$HARNESS_GROUP" == grisu-threshold-step-smt ]]; then
             export KANI_DIAGNOSTIC_SMT2_SOLVER="$PWD/cvc5-wrapper.sh"
           fi
           set -o pipefail
