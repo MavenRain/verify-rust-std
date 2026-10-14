@@ -406,23 +406,27 @@ fn generate_shortest<'a>(d: &Decoded, buf: &'a mut [MaybeUninit<u8>]) -> Shortes
     let mut remainder = plus1frac;
     let mut threshold = delta1frac;
     let mut ulp = 1;
+    #[cfg(kani)]
+    let mut fractional_digits = 0usize;
     // The scaling contract preserves a nonzero suffix in the lower e - 16
     // bits for an asymmetric interval. Each decimal step adds only one factor
     // of two, so the suffix stays nonzero below bit e through 16 more digits.
     #[cfg_attr(kani, kani::loop_invariant(
         i >= max_kappa as usize + 1 && i <= 16
+            && fractional_digits <= 15
+            && i == max_kappa as usize + 1 + fractional_digits
             && remainder < 1u64 << e
             && threshold <= remainder
             && ulp < 1u64 << 50
-            && threshold as u128 == grisu_verify::proof_threshold(delta1frac, i - max_kappa as usize - 1)
-            && ulp == grisu_verify::proof_power10(i - max_kappa as usize - 1)
+            && threshold as u128 == grisu_verify::proof_threshold(delta1frac, fractional_digits)
+            && ulp == grisu_verify::proof_power10(fractional_digits)
             && (2 * ((plus.f - v.f) as u128) < delta1 as u128
                 || remainder.wrapping_sub(threshold)
-                    << ((64 - (e - 16 + (i - max_kappa as usize - 1))) as u8) != 0)
+                    << ((64 - (e - 16 + fractional_digits)) as u8) != 0)
             && grisu_verify::initialized_digits(buf, i)
     ))]
     #[cfg_attr(kani, kani::loop_modifies(
-        &i, &remainder, &threshold, &ulp,
+        &i, &remainder, &threshold, &ulp, &fractional_digits,
         crate::ptr::slice_from_raw_parts(buf.as_ptr(), MAX_SIG_DIGITS)
     ))]
     loop {
@@ -434,11 +438,8 @@ fn generate_shortest<'a>(d: &Decoded, buf: &'a mut [MaybeUninit<u8>]) -> Shortes
         remainder *= 10; // won't overflow, `2^e * 10 < 2^64`
         #[cfg(kani)]
         {
-            threshold = grisu_verify::advance_fraction_threshold(
-                delta1frac,
-                i - max_kappa as usize - 1,
-                threshold,
-            );
+            threshold =
+                grisu_verify::advance_fraction_threshold(delta1frac, fractional_digits, threshold);
         }
         #[cfg(not(kani))]
         {
@@ -453,6 +454,10 @@ fn generate_shortest<'a>(d: &Decoded, buf: &'a mut [MaybeUninit<u8>]) -> Shortes
         debug_assert!(q < 10);
         buf[i] = MaybeUninit::new(b'0' + q as u8);
         i += 1;
+        #[cfg(kani)]
+        {
+            fractional_digits += 1;
+        }
 
         if remainder < threshold {
             let ten_kappa = 1 << e; // implicit divisor
@@ -473,18 +478,17 @@ fn generate_shortest<'a>(d: &Decoded, buf: &'a mut [MaybeUninit<u8>]) -> Shortes
             crate::kani::internal::check(i <= 16, "fractional digit capacity");
             crate::kani::internal::check(ulp < 1u64 << 50, "fractional scale width");
             crate::kani::internal::check(
-                ulp == grisu_verify::proof_power10(i - max_kappa as usize - 1),
+                ulp == grisu_verify::proof_power10(fractional_digits),
                 "fractional power update",
             );
             crate::kani::internal::check(
-                threshold as u128
-                    == grisu_verify::proof_threshold(delta1frac, i - max_kappa as usize - 1),
+                threshold as u128 == grisu_verify::proof_threshold(delta1frac, fractional_digits),
                 "fractional threshold update",
             );
             crate::kani::internal::check(
                 2 * ((plus.f - v.f) as u128) < delta1 as u128
                     || remainder.wrapping_sub(threshold)
-                        << ((64 - (e - 16 + (i - max_kappa as usize - 1))) as u8)
+                        << ((64 - (e - 16 + fractional_digits)) as u8)
                         != 0,
                 "fractional suffix update",
             );
