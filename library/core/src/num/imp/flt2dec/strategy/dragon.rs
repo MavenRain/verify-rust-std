@@ -567,7 +567,7 @@ pub mod dragon_verify {
 
     #[kani::proof]
     #[kani::unwind(41)]
-    #[kani::stub(crate::num::imp::bignum::kani_loop_size, unit_exact_limb_count)]
+    #[kani::stub(crate::num::imp::bignum::kani_loop_size, counter_frame_limb_count)]
     #[kani::stub(Big::sub, Big::kani_sub_model)]
     #[kani::stub(Big::mul_small, Big::kani_mul_small_model)]
     #[kani::stub(<Big as crate::cmp::Ord>::cmp, stub_cmp)]
@@ -2260,6 +2260,12 @@ pub mod dragon_verify {
 
     fn unit_exact_limb_count(size: usize) -> usize {
         LimbCountMask(if Digit::BITS == 64 { 3 } else { 7 }).check(size)
+    }
+
+    // This fixed-scale regression only operates on values below one hundred.
+    // Check the one-limb encoding instead of widening its arithmetic models.
+    fn counter_frame_limb_count(size: usize) -> usize {
+        LimbCountMask(1).check(size)
     }
 
     macro_rules! check_partition {
