@@ -84,11 +84,15 @@ jobs:
           ulimit -v 4194304
           cp "${models[0]}" diagnostic-counter.out
           extra_args=()
+          object_bits=14
           case "$CBMC_MODE" in
             baseline) ;;
             no-simplify) extra_args+=(--no-simplify) ;;
             no-propagation) extra_args+=(--no-propagation) ;;
             no-array-fields) extra_args+=(--no-array-field-sensitivity) ;;
+            arrays-uf) extra_args+=(--arrays-uf-always) ;;
+            objects-10) object_bits=10 ;;
+            objects-12) object_bits=12 ;;
             counter-frame)
               extra_args+=(--property num::imp::flt2dec::strategy::dragon::generate_exact_digits.assigns.2)
               ;;
@@ -100,7 +104,7 @@ jobs:
           timeout 180s cbmc_build/bin/cbmc diagnostic-counter.out --unwind 41 \
             --no-malloc-may-fail --no-undefined-shift-check --no-signed-overflow-check \
             --nan-check --no-self-loops-to-assumptions --no-pointer-primitive-check \
-            --object-bits 14 --slice-formula --verbosity 9 "${extra_args[@]}" > counter.log 2>&1 &
+            --object-bits "$object_bits" --slice-formula --verbosity 9 "${extra_args[@]}" > counter.log 2>&1 &
           driver_pid=$!
           (
             sleep 30
