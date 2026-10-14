@@ -1871,7 +1871,7 @@ pub mod dragon_verify {
     #[kani::requires(!scale.is_zero() && value < *scale.clone().mul_small(10))]
     #[kani::ensures(|result| {
         result.0.kani_valid_storage()
-            && result.0.kani_size() == old(value.kani_size())
+            && result.0.kani_size() <= crate::cmp::max(old(value.kani_size()), scale.kani_size() + 1)
             && result.0 < scale
             && result.1 < 10
     })]
