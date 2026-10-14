@@ -8,7 +8,7 @@ on:
       suite:
         type: choice
         default: grid
-        options: [grid, scaling, generators, properties, normalization, arithmetic, grisu-generators, arithmetic-properties, exact-digits, runtime]
+        options: [grid, scaling, generators, properties, normalization, arithmetic, grisu-generators, arithmetic-properties, exact-digits, runtime, verifier]
       groups:
         description: Optional JSON array of named diagnostic groups
         type: string
@@ -51,6 +51,26 @@ permissions:
   actions: read
 
 jobs:
+  verifier:
+    if: inputs.suite == 'verifier'
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        id: cbmc
+        with:
+          path: cbmc_build/bin
+          key: cbmc-flat-smt-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('scripts/setup-flat-smt-cbmc.sh', 'scripts/cbmc-skip-unused-loop-assigns.patch') }}
+      - name: Install build dependencies
+        if: runner.os == 'Linux' && steps.cbmc.outputs.cache-hit != 'true'
+        run: sudo apt-get update && sudo apt-get install -y cmake flex bison
+      - run: bash scripts/setup-flat-smt-cbmc.sh
+      - run: bash scripts/kani-std-analysis/test_cbmc_loop_assigns.sh cbmc_build/bin
   runtime:
     if: inputs.suite == 'runtime'
     runs-on: ${{ matrix.os }}
@@ -64,7 +84,7 @@ jobs:
       - run: rustup toolchain install nightly-2026-09-25 --profile minimal
       - run: bash scripts/kani-std-analysis/test_flt2dec_runtime.sh
   proofs:
-    if: inputs.suite != 'properties' && inputs.suite != 'arithmetic-properties' && inputs.suite != 'runtime'
+    if: inputs.suite != 'properties' && inputs.suite != 'arithmetic-properties' && inputs.suite != 'runtime' && inputs.suite != 'verifier'
     runs-on: ${{ inputs.runner || 'ubuntu-latest' }}
     timeout-minutes: ${{ inputs.suite == 'generators' && 180 || 90 }}
     strategy:

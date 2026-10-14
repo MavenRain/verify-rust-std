@@ -36,9 +36,11 @@ int main(int argc, char **argv)
   const fs::path tools = argv[1];
   const fs::path scratch = argv[2];
   const std::string compiler = quote(argv[3]);
-  const std::array<std::pair<std::string, std::string>, 3> cases = {{
+  const std::array<std::pair<std::string, std::string>, 5> cases = {{
     {"explicit", "__CPROVER_assigns(i, value)"},
     {"inferred", ""},
+    {"empty", "__CPROVER_assigns()"},
+    {"mixed", "__CPROVER_assigns(i, value)"},
     {"omitted", "__CPROVER_assigns(i)"},
   }};
   for(const auto &test : cases)
@@ -50,13 +52,22 @@ int main(int argc, char **argv)
     const fs::path log = scratch / (name + ".log");
     // C is an input fixture for the instrumenter. The test driver and all
     // verification-result checks are C++, matching the patched implementation.
-    std::ofstream(source)
+    std::ofstream fixture(source);
+    fixture
       << "void write_next(unsigned *value) { ++*value; }\n"
          "int main(void) { unsigned i = 0, value = 0;\n"
          "for(; i < 3; ++i)\n"
       << test.second
       << "\n__CPROVER_loop_invariant(i <= 3 && value == i)\n{ write_next(&value); }\n"
-         "__CPROVER_assert(value == 3, \"loop value\"); return 0; }\n";
+         "__CPROVER_assert(value == 3, \"loop value\");\n";
+    if(name == "mixed")
+      fixture
+        << "for(i = 0; i < 3; ++i)\n"
+           "__CPROVER_loop_invariant(i <= 3 && value == i + 3)\n"
+           "{ write_next(&value); }\n"
+           "__CPROVER_assert(value == 6, \"inferred second loop value\");\n";
+    fixture << "return 0; }\n";
+    fixture.close();
     const std::array<std::string, 2> preparation = {{
       compiler + " " + quote(source.string()) + " -o " + quote(model.string()),
       quote((tools / "goto-instrument").string()) +
