@@ -249,6 +249,15 @@ jobs:
       - name: Free runner disk space
         if: runner.os == 'Linux'
         run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /usr/local/.ghcup
+      - name: Add memory for large proof formulas
+        if: runner.os == 'Linux' && startsWith(matrix.group, 'dragon-')
+        run: |
+          sudo fallocate -l 24G /mnt/pr601-swap
+          sudo chmod 600 /mnt/pr601-swap
+          sudo mkswap /mnt/pr601-swap
+          sudo swapon /mnt/pr601-swap
+          free -h
+          df -h /mnt
       - name: Install build prerequisites
         if: runner.os == 'Linux'
         run: |
@@ -396,7 +405,7 @@ jobs:
             trace_args=(--export-json proof-results.json --concrete-playback print)
           fi
           if [[ "$RUNNER_OS" == Linux && ( "$HARNESS_GROUP" == dragon-loop-instrumentation || "$HARNESS_GROUP" == dragon-shortest-fixed-exponent || "$HARNESS_GROUP" == dragon-exact-single-* || "$HARNESS_GROUP" == dragon-exact-exponent-* || "$HARNESS_GROUP" == grisu-shortest-smt-* ) ]]; then
-            ulimit -v 8388608
+            ulimit -v 33554432
           elif [[ "$RUNNER_OS" == Linux && "$HARNESS_GROUP" == dragon-loop-frame ]]; then
             # Keep the runner alive to upload the model when instrumentation grows.
             ulimit -v 4194304
