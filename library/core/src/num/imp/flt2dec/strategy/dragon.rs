@@ -1866,6 +1866,43 @@ pub mod dragon_verify {
         kani::cover(remainder == 0, "limb division can have no remainder");
     }
 
+    #[kani::requires(value.kani_valid_storage() && scale.kani_valid_storage())]
+    #[kani::requires(value.kani_size() < KANI_LIMBS && scale.kani_size() < KANI_LIMBS)]
+    #[kani::requires(!scale.is_zero() && value < *scale.clone().mul_small(10))]
+    #[kani::ensures(|result| {
+        result.0.kani_valid_storage()
+            && result.0.kani_size() == old(value.kani_size())
+            && result.0 < scale
+            && result.1 < 10
+    })]
+    fn digit_remainder_contract(mut value: Big, scale: Big) -> (Big, u8) {
+        let scale2 = scale.clone().mul_small(2).clone();
+        let scale4 = scale.clone().mul_small(4).clone();
+        let scale8 = scale.clone().mul_small(8).clone();
+        let digit = div_rem_upto_16(&mut value, &scale, &scale2, &scale4, &scale8).0;
+        (value, digit)
+    }
+
+    #[kani::proof_for_contract(digit_remainder_contract)]
+    #[kani::stub(<Big as crate::cmp::Ord>::cmp, stub_cmp)]
+    #[kani::stub(Big::is_zero, stub_is_zero)]
+    #[kani::stub(Big::sub, Big::kani_sub_model)]
+    #[kani::stub(Big::mul_small, Big::kani_mul_small_model)]
+    #[cfg_attr(target_pointer_width = "64", kani::stub(u64::carrying_mul, carrying_mul_model))]
+    #[cfg_attr(
+        any(target_pointer_width = "16", target_pointer_width = "32"),
+        kani::stub(u32::carrying_mul, carrying_mul_model)
+    )]
+    #[kani::unwind(41)]
+    #[kani::solver(kissat)]
+    fn check_digit_remainder_contract() {
+        let value = Big::kani_any_valid();
+        let scale = Big::kani_any_valid();
+        let (_, digit) = digit_remainder_contract(value, scale);
+        kani::cover(digit == 0, "digit subtraction includes zero");
+        kani::cover(digit == 9, "digit subtraction includes nine");
+    }
+
     // Verify the limb loop separately from the outer power-of-ten loop.
     // Only limbs are writable, so stubs retain the caller's size expression.
     #[kani::requires(divisor > 0 && value.kani_valid_storage())]
