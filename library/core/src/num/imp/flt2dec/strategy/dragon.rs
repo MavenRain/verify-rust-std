@@ -2291,7 +2291,7 @@ pub mod dragon_verify {
 
     fn checked_pow10_complete<const EXPONENT: usize>(n: usize) -> usize {
         assert!(EXPONENT < 0x7ff);
-        Pow10Prefix::for_range(-324..=308).check(n)
+        Pow10Prefix::for_range(0..=324).check(n)
     }
 
     fn checked_pow10_unit<const EXPONENT: usize>(n: usize) -> usize {
