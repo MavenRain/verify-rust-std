@@ -357,9 +357,11 @@ fn generate_exact_digits(
 
 #[cfg(kani)]
 fn initialized_digit_prefix(buf: &[MaybeUninit<u8>], len: usize) -> bool {
+    // Each byte keeps its own initialization guard. Combine the independent
+    // checks eagerly to avoid nested short-circuit paths during instrumentation.
     macro_rules! check_digit {
         ($($index:literal),+ $(,)?) => {
-            true $(&& (len <= $index || (
+            true $(& (len <= $index || (
                 kani::mem::can_dereference(unsafe { buf.as_ptr().add($index).cast::<u8>() })
                     && unsafe { buf[$index].assume_init() >= b'0' && buf[$index].assume_init() <= b'9' }
             )))+
