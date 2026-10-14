@@ -2,7 +2,7 @@
 #![allow(internal_features, unexpected_cfgs, dead_code)]
 #![unstable(feature = "flt2dec_runtime_test", issue = "none")]
 
-pub use std::{clone, cmp, f64, fmt, mem, ops, option, primitive, ptr, result};
+pub use std::{clone, cmp, f64, fmt, iter, mem, ops, option, primitive, ptr, result};
 
 #[path = "../../library/core/src/num/imp/bignum.rs"]
 pub mod actual_bignum;
