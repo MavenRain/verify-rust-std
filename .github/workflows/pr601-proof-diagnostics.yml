@@ -65,28 +65,44 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           github-token: ${{ github.token }}
-          run-id: 38516410957
-          name: proof-log-dragon-loop-instrumentation
+          run-id: ${{ inputs.artifact_run || '38535683598' }}
+          name: ${{ inputs.artifact_name || 'proof-log-dragon-loop-frame' }}
           path: diagnostic-input
+      - name: Install stack inspection tool
+        run: sudo apt-get update && sudo apt-get install -y gdb
       - name: Check the generated counter frame
         run: |
           shopt -s globstar nullglob
           models=(diagnostic-input/**/*.out)
           [[ ${#models[@]} == 1 ]]
           ulimit -v 4194304
-          cbmc_build/bin/goto-instrument --reachability-slice \
-            --property num::imp::flt2dec::strategy::dragon::generate_exact_digits.assigns.2 \
-            "${models[0]}" diagnostic-counter.out
-          set -o pipefail
-          timeout 180s cbmc_build/bin/cbmc diagnostic-counter.out --unwind 33 \
-            --object-bits 14 --slice-formula \
-            --property num::imp::flt2dec::strategy::dragon::generate_exact_digits.assigns.2 \
-            --trace 2>&1 | tee counter.log
+          cp "${models[0]}" diagnostic-counter.out
+          timeout 180s cbmc_build/bin/cbmc diagnostic-counter.out --unwind 41 \
+            --no-malloc-may-fail --no-undefined-shift-check --no-signed-overflow-check \
+            --nan-check --no-self-loops-to-assumptions --no-pointer-primitive-check \
+            --object-bits 14 --slice-formula --verbosity 9 > counter.log 2>&1 &
+          driver_pid=$!
+          (
+            sleep 30
+            cbmc_pid=$(pgrep -P "$driver_pid" -x cbmc || true)
+            if [[ -n "$cbmc_pid" ]]; then
+              ps -o pid,rss,vsz,comm -p "$cbmc_pid" > cbmc-stack.txt
+              sudo gdb -batch -ex 'set pagination off' -ex 'thread apply all bt 25' \
+                -p "$cbmc_pid" 2>&1 | tee -a cbmc-stack.txt || true
+            fi
+          ) &
+          set +e
+          wait "$driver_pid"
+          status=$?
+          tail -30 counter.log
+          exit "$status"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: dragon-counter-frame
-          path: counter.log
+          path: |
+            counter.log
+            cbmc-stack.txt
   verifier:
     if: inputs.suite == 'verifier'
     runs-on: ${{ matrix.os }}
