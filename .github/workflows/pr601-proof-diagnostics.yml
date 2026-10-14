@@ -94,10 +94,16 @@ jobs:
             objects-10) object_bits=10 ;;
             objects-12) object_bits=12 ;;
             counter-frame)
+              object_bits=10
               extra_args+=(--property num::imp::flt2dec::strategy::dragon::generate_exact_digits.assigns.2)
               ;;
             counter-cover)
+              object_bits=10
               extra_args+=(--json-ui --property num::imp::flt2dec::strategy::dragon::dragon_verify::check_exact_digit_loop_frame.cover.1)
+              ;;
+            counter-omitted)
+              object_bits=10
+              extra_args+=(--json-ui --property num::imp::flt2dec::strategy::dragon::generate_exact_digits.assigns.2)
               ;;
             *) exit 2 ;;
           esac
@@ -119,17 +125,20 @@ jobs:
           wait "$driver_pid"
           status=$?
           tail -30 counter.log
-          if [[ "$CBMC_MODE" == counter-cover && "$status" == 10 ]]; then
+          if [[ ( "$CBMC_MODE" == counter-cover || "$CBMC_MODE" == counter-omitted ) && "$status" == 10 ]]; then
             python3 -I - <<'PY'
           import json
+          import os
           from pathlib import Path
           reports = json.loads(Path("counter.log").read_text())
           results = [item for report in reports for item in report.get("result", [])]
           expected = "num::imp::flt2dec::strategy::dragon::dragon_verify::check_exact_digit_loop_frame.cover.1"
+          if os.environ["CBMC_MODE"] == "counter-omitted":
+              expected = "num::imp::flt2dec::strategy::dragon::generate_exact_digits.assigns.2"
           assert len(results) == 1, results
           assert results[0]["property"] == expected, results
           assert results[0]["status"] == "FAILURE", results
-          print("The generated digit cover has a witness.")
+          print(f"Expected witness confirmed for {expected}.")
           PY
             exit $?
           fi
