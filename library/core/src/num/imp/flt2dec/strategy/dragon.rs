@@ -11,6 +11,8 @@ use crate::cmp::Ordering;
 #[cfg(kani)]
 use crate::kani;
 use crate::mem::MaybeUninit;
+#[cfg(kani)]
+use crate::num::imp::bignum::KaniInvariantOrdering;
 use crate::num::imp::bignum::{Big, Digit};
 use crate::num::imp::flt2dec;
 
@@ -239,8 +241,17 @@ pub fn format_shortest<'a>(
             && mant.kani_invariant_less_than(&proof_scale10)
             && minus.kani_invariant_less_than(&proof_scale10)
             && plus.kani_invariant_less_than(&proof_scale10)
-            && (i == 0 || proof_scale10.cmp(mant.clone().add(&plus)) >= rounding)
-            && scale < shortest_remaining_margin(&minus, &plus, i)
+            && (i == 0 || match proof_scale10.kani_invariant_cmp_scaled_sum(&mant, &plus, 0) {
+                KaniInvariantOrdering::Less => (Ordering::Less as i8) >= rounding as i8,
+                KaniInvariantOrdering::Equal => (Ordering::Equal as i8) >= rounding as i8,
+                KaniInvariantOrdering::Greater => true,
+                KaniInvariantOrdering::Unrepresentable => false,
+            })
+            && match scale.kani_invariant_cmp_scaled_sum(&minus, &plus, MAX_SIG_DIGITS - 1 - i) {
+                KaniInvariantOrdering::Less => true,
+                KaniInvariantOrdering::Equal | KaniInvariantOrdering::Greater
+                    | KaniInvariantOrdering::Unrepresentable => false,
+            }
             && initialized_digit_prefix(buf, i)
     ))]
     loop {
@@ -629,6 +640,38 @@ pub mod dragon_verify {
             left.kani_size() == 0 && !left.kani_valid_storage(),
             "comparison models accept arbitrary inactive limbs",
         );
+    }
+
+    #[kani::proof]
+    #[kani::unwind(41)]
+    #[kani::solver(kissat)]
+    fn check_scaled_sum_comparison() {
+        let left_size = usize::from(kani::any::<u8>() & 0x3f);
+        let right_size = usize::from(kani::any::<u8>() & 0x3f);
+        let scale_size = usize::from(kani::any::<u8>() & 0x3f);
+        kani::assume(left_size <= KANI_LIMBS - 2 && right_size <= KANI_LIMBS - 2);
+        kani::assume(scale_size <= KANI_LIMBS);
+        let left = Big::kani_valid_with_size(left_size);
+        let right = Big::kani_valid_with_size(right_size);
+        let scale = Big::kani_valid_with_size(scale_size);
+        let digits = usize::from(kani::any::<u8>() & 0x1f);
+        kani::assume(digits < MAX_SIG_DIGITS);
+        let reference = shortest_remaining_margin(&left, &right, MAX_SIG_DIGITS - 1 - digits);
+        let expected = match scale.cmp(&reference) {
+            Ordering::Less => KaniInvariantOrdering::Less,
+            Ordering::Equal => KaniInvariantOrdering::Equal,
+            Ordering::Greater => KaniInvariantOrdering::Greater,
+        };
+        assert!(scale.kani_invariant_cmp_scaled_sum(&left, &right, digits) == expected);
+        assert!(
+            scale.kani_invariant_cmp_scaled_sum(&left, &right, 17)
+                == KaniInvariantOrdering::Unrepresentable
+        );
+        kani::cover(digits == 16, "comparison checks the largest decimal scale");
+        kani::cover(left_size == KANI_LIMBS - 2, "comparison checks the largest sum input");
+        kani::cover(expected == KaniInvariantOrdering::Equal, "scaled sum can be equal");
+        kani::cover(expected == KaniInvariantOrdering::Less, "scaled sum can be less");
+        kani::cover(expected == KaniInvariantOrdering::Greater, "scaled sum can be greater");
     }
 
     #[kani::proof]
