@@ -745,6 +745,7 @@ impl Big {
         self
     }
 
+    #[rustc_force_inline]
     fn kani_mul_digits_row(
         ret: &mut [Digit; KANI_LIMBS],
         a: Digit,
