@@ -1,14 +1,19 @@
 diff --git a/kani-compiler/src/codegen_cprover_gotoc/codegen/statement.rs b/kani-compiler/src/codegen_cprover_gotoc/codegen/statement.rs
 --- a/kani-compiler/src/codegen_cprover_gotoc/codegen/statement.rs
 +++ b/kani-compiler/src/codegen_cprover_gotoc/codegen/statement.rs
-@@ -165,6 +165,18 @@
+@@ -165,6 +165,23 @@
                      self.current_loop_modifies = assigns.clone();
                      return Stmt::skip(location);
                  }
 +                // A for-loop's synthetic counter is created after its explicit
 +                // frame. Include it so both havoc and assignment checks cover
 +                // iterator advancement, just as inferred frames already do.
-+                if !self.current_loop_modifies.is_empty() && localname.contains("kani_index_") {
++                if !self.current_loop_modifies.is_empty()
++                    && localname
++                        .rsplit("::")
++                        .next()
++                        .is_some_and(|name| name.starts_with("kani_index_"))
++                {
 +                    let counter = unwrap_or_return_codegen_unimplemented_stmt!(
 +                        self,
 +                        self.codegen_place_stable(lhs, location)
