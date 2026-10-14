@@ -1023,6 +1023,39 @@ pub mod grisu_verify {
     fn check_fractional_invariant_encoding() {
         let exponent: usize = kani::any();
         kani::assume(exponent <= 15);
+        check_fractional_encoding_for_exponent(exponent);
+    }
+
+    macro_rules! check_fractional_encoding_power {
+        ($($name:ident => $exponent:literal),+ $(,)?) => {$(
+            #[kani::proof]
+            fn $name() {
+                check_fractional_encoding_for_exponent($exponent);
+            }
+        )+};
+    }
+
+    check_fractional_encoding_power!(
+        check_fractional_encoding_00 => 0,
+        check_fractional_encoding_01 => 1,
+        check_fractional_encoding_02 => 2,
+        check_fractional_encoding_03 => 3,
+        check_fractional_encoding_04 => 4,
+        check_fractional_encoding_05 => 5,
+        check_fractional_encoding_06 => 6,
+        check_fractional_encoding_07 => 7,
+        check_fractional_encoding_08 => 8,
+        check_fractional_encoding_09 => 9,
+        check_fractional_encoding_10 => 10,
+        check_fractional_encoding_11 => 11,
+        check_fractional_encoding_12 => 12,
+        check_fractional_encoding_13 => 13,
+        check_fractional_encoding_14 => 14,
+        check_fractional_encoding_15 => 15,
+    );
+
+    fn check_fractional_encoding_for_exponent(exponent: usize) {
+        assert!(exponent <= 15);
         let power = proof_power10(exponent);
         assert!(power < 1u64 << 50);
         let ulp: u64 = kani::any();
@@ -1042,10 +1075,7 @@ pub mod grisu_verify {
         let value: u64 = kani::any();
         kani::assume(shift < 64);
         assert_eq!(value << shift, value << (shift as u8));
-        kani::cover(
-            exponent == 15 && ulp == power,
-            "the largest fractional decimal power is checked",
-        );
+        kani::cover(ulp == power, "the selected fractional decimal power is checked");
         kani::cover(shift == 63, "the maximum defined shift is checked");
     }
 
