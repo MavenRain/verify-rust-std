@@ -563,6 +563,11 @@ pub mod dragon_verify {
 
     #[kani::proof]
     #[kani::unwind(41)]
+    #[kani::stub(crate::num::imp::bignum::kani_loop_size, unit_exact_limb_count)]
+    #[kani::stub(Big::sub, Big::kani_sub_model)]
+    #[kani::stub(Big::mul_small, Big::kani_mul_small_model)]
+    #[kani::stub(<Big as crate::cmp::Ord>::cmp, stub_cmp)]
+    #[kani::stub(Big::is_zero, stub_is_zero)]
     #[kani::solver(kissat)]
     fn check_exact_digit_loop_frame() {
         let mut mant = Big::from_u64(5);
