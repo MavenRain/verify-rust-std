@@ -8,8 +8,6 @@ use flt2dec::estimator::estimate_scaling_factor;
 use flt2dec::{Decoded, MAX_SIG_DIGITS, round_up};
 
 use crate::cmp::Ordering;
-#[cfg(kani)]
-use crate::kani;
 use crate::mem::MaybeUninit;
 use crate::num::imp::bignum::{Big, Digit};
 use crate::num::imp::flt2dec;
@@ -367,26 +365,6 @@ pub fn format_exact<'a>(
         let mut scale8 = scale.clone();
         scale8.mul_pow2(3);
 
-        #[cfg(kani)]
-        let proof_scale10 = scale.clone().mul_small(10).clone();
-        #[cfg(kani)]
-        let proof_max_limbs = crate::cmp::max(mant.kani_size(), proof_scale10.kani_size());
-        #[cfg_attr(kani, kani::loop_modifies(&mant, &buf[..]))]
-        #[cfg_attr(kani, kani::loop_invariant(
-            kani::index <= len
-                && kani::index <= dragon_verify::PROOF_BUFLEN
-                && mant.kani_size() <= proof_max_limbs
-                && mant.kani_valid_storage()
-                && mant < proof_scale10
-                && kani::mem::can_dereference(crate::ptr::slice_from_raw_parts(
-                    buf.as_ptr().cast::<u8>(), kani::index
-                ))
-                && kani::internal::kani_forall(0usize, dragon_verify::PROOF_BUFLEN, |j| {
-                    j >= kani::index || unsafe {
-                        buf[j].assume_init() >= b'0' && buf[j].assume_init() <= b'9'
-                    }
-                })
-        ))]
         for i in 0..len {
             if mant.is_zero() {
                 // following digits are all zeroes, we stop here

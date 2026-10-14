@@ -109,6 +109,10 @@ jobs:
           elif [[ "$HARNESS_GROUP" == arithmetic-* ]]; then
             if [[ "$HARNESS_GROUP" == *dragon-digit* ]]; then
               echo num::imp::flt2dec::strategy::dragon::dragon_verify::check_digit_remainder_contract > harnesses.txt
+            elif [[ "$HARNESS_GROUP" == *dragon-exact-generator* ]]; then
+              echo num::imp::flt2dec::strategy::dragon::dragon_verify::f64_08::check_format_exact > harnesses.txt
+            elif [[ "$HARNESS_GROUP" == *dragon-shortest-generator* ]]; then
+              echo num::imp::flt2dec::strategy::dragon::dragon_verify::f64_08::check_format_shortest > harnesses.txt
             elif [[ "$HARNESS_GROUP" == *decimal* ]]; then
               echo num::imp::flt2dec::strategy::grisu::grisu_verify::check_decimal_termination > harnesses.txt
             elif [[ "$HARNESS_GROUP" =~ ^arithmetic-smt-product-contract-([0-9]{2})-([0-9]{2})-sum$ ]]; then
