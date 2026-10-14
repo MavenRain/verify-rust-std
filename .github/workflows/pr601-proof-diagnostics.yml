@@ -8,7 +8,7 @@ on:
       suite:
         type: choice
         default: grid
-        options: [grid, scaling, generators, properties, normalization, arithmetic, grisu-generators, arithmetic-properties, exact-digits]
+        options: [grid, scaling, generators, properties, normalization, arithmetic, grisu-generators, arithmetic-properties, exact-digits, runtime]
       groups:
         description: Optional JSON array of named diagnostic groups
         type: string
@@ -46,8 +46,20 @@ permissions:
   actions: read
 
 jobs:
+  runtime:
+    if: inputs.suite == 'runtime'
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - run: rustup toolchain install nightly-2026-09-25 --profile minimal
+      - run: bash scripts/kani-std-analysis/test_flt2dec_runtime.sh
   proofs:
-    if: inputs.suite != 'properties' && inputs.suite != 'arithmetic-properties'
+    if: inputs.suite != 'properties' && inputs.suite != 'arithmetic-properties' && inputs.suite != 'runtime'
     runs-on: ${{ inputs.runner || 'ubuntu-latest' }}
     timeout-minutes: 90
     strategy:
