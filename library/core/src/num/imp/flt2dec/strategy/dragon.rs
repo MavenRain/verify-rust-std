@@ -406,7 +406,6 @@ fn generate_exact_digits(
 }
 
 #[cfg(kani)]
-#[rustc_force_inline]
 fn initialized_digit_prefix(buf: &[MaybeUninit<u8>], len: usize) -> bool {
     // Each byte keeps its own initialization guard. Combine the independent
     // checks eagerly to avoid nested short-circuit paths during instrumentation.
