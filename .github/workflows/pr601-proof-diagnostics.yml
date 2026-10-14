@@ -114,6 +114,8 @@ jobs:
             echo num::imp::flt2dec::strategy::grisu::grisu_verify::check_rounded_multiply > harnesses.txt
           elif [[ "$HARNESS_GROUP" == normalized-multiply ]]; then
             echo num::imp::flt2dec::strategy::grisu::grisu_verify::check_normalized_multiply > harnesses.txt
+          elif [[ "$HARNESS_GROUP" =~ ^grisu-exact-single-(f32_0[0-3]|f64_([0-2][0-9]|3[01]))$ ]]; then
+            printf 'num::imp::flt2dec::strategy::grisu::grisu_verify::%s::check_format_exact_opt\n' "${BASH_REMATCH[1]}" > harnesses.txt
           elif [[ "$HARNESS_GROUP" == dragon-digit-remainder ]]; then
             echo num::imp::flt2dec::strategy::dragon::dragon_verify::check_digit_remainder_contract > harnesses.txt
           elif [[ "$HARNESS_GROUP" == dragon-digit-one-limb ]]; then
