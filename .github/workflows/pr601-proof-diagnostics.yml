@@ -25,6 +25,11 @@ on:
         type: choice
         options: [ubuntu-latest, macos-latest]
         default: ubuntu-latest
+      solver:
+        description: Override the native SAT solver for a bounded comparison
+        type: choice
+        options: [auto, minisat, kissat]
+        default: auto
       artifact_run:
         description: Optional run containing a previously compiled proof
         type: string
@@ -76,7 +81,7 @@ jobs:
       KANI_SYMEX_CACHE_DEREFERENCES: 'true'
       KANI_ARRAY_FIELD_SENSITIVITY: 'true'
       HARNESS_GROUP: ${{ matrix.group }}
-      SOLVER: ${{ (matrix.group == 'scaling-refinement' || matrix.group == 'scaling-flat-smt' || matrix.group == 'normalization-scaling-smt' || startsWith(matrix.group, 'arithmetic-smt-')) && 'minisat' || 'kissat' }}
+      SOLVER: ${{ inputs.solver != 'auto' && inputs.solver || (matrix.group == 'scaling-refinement' || matrix.group == 'scaling-flat-smt' || matrix.group == 'normalization-scaling-smt' || startsWith(matrix.group, 'arithmetic-smt-')) && 'minisat' || 'kissat' }}
       KANI_FLAT_SMT_Z3: ${{ (matrix.group == 'scaling-flat-smt' || matrix.group == 'normalization-scaling-smt') && 'true' || 'false' }}
       KANI_ARITHMETIC_REFINEMENT: ${{ matrix.group == 'scaling-refinement' && 'true' || 'false' }}
     steps:
