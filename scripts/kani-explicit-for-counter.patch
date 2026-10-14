@@ -25,29 +25,36 @@ diff --git a/kani-compiler/src/codegen_cprover_gotoc/codegen/statement.rs b/kani
                  if localname.contains("kani_loop_decreases") {
                      if !self
                          .queries
-@@ -768,6 +785,26 @@
+@@ -768,6 +785,33 @@
      ) -> Stmt {
          debug!(?func, ?args, ?destination, ?span, "codegen_funcall");
          let instance_opt = self.get_instance(func);
-+        // The for-loop transformation initializes the pattern before the loop
-+        // and assigns its nth value inside it. Its MIR local needs the same
-+        // explicit frame treatment as the synthetic iteration counter.
-+        if !self.current_loop_modifies.is_empty()
-+            && instance_opt.is_some_and(|instance| {
-+                matches!(
-+                    instance.ty().kind(),
-+                    TyKind::RigidTy(RigidTy::FnDef(def, _))
-+                        if def.name() == "kani::KaniIter::first"
-+                )
-+            })
-+        {
-+            let location = self.codegen_span_stable(span);
-+            let pattern = unwrap_or_return_codegen_unimplemented_stmt!(
-+                self,
-+                self.codegen_place_stable(destination, location)
++        // The pattern can be lowered to either first or nth. Only include its
++        // destination while the generated counter marks an explicit for-frame.
++        let synthetic_for_frame = self.current_loop_modifies.iter().any(|target| {
++            matches!(
++                target.value(),
++                cprover_bindings::goto_program::ExprValue::Symbol { identifier }
++                    if identifier.to_string().rsplit("::").next()
++                        .is_some_and(|name| name.starts_with("kani_index_"))
 +            )
-+            .goto_expr;
-+            self.current_loop_modifies.push(pattern);
++        });
++        if synthetic_for_frame
++            && let TyKind::RigidTy(RigidTy::FnDef(def, _)) = self.operand_ty_stable(func).kind()
++        {
++            let callee = def.name();
++            tracing::info!("explicit for-frame initializer: {callee}");
++            if callee.contains("KaniIter")
++                && (callee.ends_with("::first") || callee.ends_with("::nth"))
++            {
++                let location = self.codegen_span_stable(span);
++                let pattern = unwrap_or_return_codegen_unimplemented_stmt!(
++                    self,
++                    self.codegen_place_stable(destination, location)
++                )
++                .goto_expr;
++                self.current_loop_modifies.push(pattern);
++            }
 +        }
          if let Some(instance) = instance_opt
              && matches!(instance.kind, InstanceKind::LlvmIntrinsic)
