@@ -104,7 +104,10 @@ jobs:
             grisu-integral-base) extra_args+=(--property num::imp::flt2dec::strategy::grisu::generate_integral_digits.loop_invariant_base.1) ;;
             grisu-integral-step) extra_args+=(--property num::imp::flt2dec::strategy::grisu::generate_integral_digits.loop_invariant_step.1) ;;
             grisu-safety)
-              cbmc_build/bin/cbmc diagnostic-counter.out --show-properties --json-ui > properties.json
+              cbmc_build/bin/cbmc diagnostic-counter.out --no-malloc-may-fail \
+                --no-undefined-shift-check --no-signed-overflow-check --nan-check \
+                --no-self-loops-to-assumptions --no-pointer-primitive-check \
+                --object-bits "$object_bits" --show-properties --json-ui > properties.json
               python3 -I - <<'PY' > selected-properties.txt
           import json
           from pathlib import Path
