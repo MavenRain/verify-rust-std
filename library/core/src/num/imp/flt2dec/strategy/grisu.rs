@@ -332,7 +332,6 @@ fn generate_shortest<'a>(d: &Decoded, buf: &'a mut [MaybeUninit<u8>]) -> Shortes
     // render integral parts, while checking for the accuracy at each step.
     let mut ten_kappa = max_ten_kappa; // 10^kappa
     let mut remainder = plus1int; // digits yet to be rendered
-    #[cfg_attr(kani, kani::loop_modifies(&i, &ten_kappa, &remainder, &buf[..]))]
     #[cfg_attr(kani, kani::loop_invariant(
         i <= max_kappa as usize
             && ten_kappa as u64 == grisu_verify::proof_power10(max_kappa as usize - i)
@@ -341,10 +340,11 @@ fn generate_shortest<'a>(d: &Decoded, buf: &'a mut [MaybeUninit<u8>]) -> Shortes
             && remainder <= plus1int
             && ((remainder as u128) << e) + plus1frac as u128 >= delta1 as u128
             && kani::mem::can_dereference(crate::ptr::slice_from_raw_parts(buf.as_ptr().cast::<u8>(), i))
-            && kani::internal::kani_forall(0usize, i, |j| unsafe {
-                buf[j].assume_init() >= b'0' && buf[j].assume_init() <= b'9'
+            && kani::internal::kani_forall(0usize, MAX_SIG_DIGITS, |j| {
+                j >= i || unsafe { buf[j].assume_init() >= b'0' && buf[j].assume_init() <= b'9' }
             })
     ))]
+    #[cfg_attr(kani, kani::loop_modifies(&i, &ten_kappa, &remainder, &buf[..]))]
     loop {
         // we always have at least one digit to render, as `plus1 >= 10^kappa`
         // invariants:
@@ -391,7 +391,6 @@ fn generate_shortest<'a>(d: &Decoded, buf: &'a mut [MaybeUninit<u8>]) -> Shortes
     let mut remainder = plus1frac;
     let mut threshold = delta1frac;
     let mut ulp = 1;
-    #[cfg_attr(kani, kani::loop_modifies(&i, &remainder, &threshold, &ulp, &buf[..]))]
     #[cfg_attr(kani, kani::loop_invariant(
         i >= max_kappa as usize + 1 && i <= 16
             && remainder < 1u64 << e
@@ -399,10 +398,11 @@ fn generate_shortest<'a>(d: &Decoded, buf: &'a mut [MaybeUninit<u8>]) -> Shortes
             && threshold as u128 == delta1frac as u128 * ulp as u128
             && ulp == grisu_verify::proof_power10(i - max_kappa as usize - 1)
             && kani::mem::can_dereference(crate::ptr::slice_from_raw_parts(buf.as_ptr().cast::<u8>(), i))
-            && kani::internal::kani_forall(0usize, i, |j| unsafe {
-                buf[j].assume_init() >= b'0' && buf[j].assume_init() <= b'9'
+            && kani::internal::kani_forall(0usize, MAX_SIG_DIGITS, |j| {
+                j >= i || unsafe { buf[j].assume_init() >= b'0' && buf[j].assume_init() <= b'9' }
             })
     ))]
+    #[cfg_attr(kani, kani::loop_modifies(&i, &remainder, &threshold, &ulp, &buf[..]))]
     loop {
         // the next digit should be significant as we've tested that before breaking out
         // invariants, where `m = max_kappa + 1` (# of digits in the integral part):

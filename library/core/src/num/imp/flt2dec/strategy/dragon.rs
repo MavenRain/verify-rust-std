@@ -374,14 +374,17 @@ pub fn format_exact<'a>(
         #[cfg_attr(kani, kani::loop_modifies(&mant, &buf[..]))]
         #[cfg_attr(kani, kani::loop_invariant(
             kani::index <= len
+                && kani::index <= dragon_verify::PROOF_BUFLEN
                 && mant.kani_size() <= proof_max_limbs
                 && mant.kani_valid_storage()
                 && mant < proof_scale10
                 && kani::mem::can_dereference(crate::ptr::slice_from_raw_parts(
                     buf.as_ptr().cast::<u8>(), kani::index
                 ))
-                && kani::internal::kani_forall(0usize, kani::index, |j| unsafe {
-                    buf[j].assume_init() >= b'0' && buf[j].assume_init() <= b'9'
+                && kani::internal::kani_forall(0usize, dragon_verify::PROOF_BUFLEN, |j| {
+                    j >= kani::index || unsafe {
+                        buf[j].assume_init() >= b'0' && buf[j].assume_init() <= b'9'
+                    }
                 })
         ))]
         for i in 0..len {
@@ -473,7 +476,7 @@ pub mod dragon_verify {
     // uses the division contract below for initial fixup. Neither termination
     // nor the buffer index is assumed. Bigint unwind assertions remain enabled.
     // Lengths above 32 require a separate proof; these harnesses are bounded.
-    const PROOF_BUFLEN: usize = 32;
+    pub(super) const PROOF_BUFLEN: usize = 32;
     const _: () = assert!(PROOF_BUFLEN <= u8::MAX as usize);
 
     // The models assert the size bounds checked by the independent equivalence
