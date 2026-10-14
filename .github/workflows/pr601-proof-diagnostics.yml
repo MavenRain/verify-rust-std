@@ -418,6 +418,7 @@ jobs:
           done < harnesses.txt
           if [[ "$HARNESS_GROUP" == arithmetic-smt-* || "$HARNESS_GROUP" == grisu-shortest-smt-* || "$HARNESS_GROUP" == dragon-scaled-sum-comparison-smt* || "$HARNESS_GROUP" == dragon-exact-exponent-smt-* || "$HARNESS_GROUP" == dragon-mul-digits-equivalence* || "$HARNESS_GROUP" == grisu-invariant-encoding-powers-smt || "$HARNESS_GROUP" == grisu-threshold-step-smt ]]; then
             export KANI_DIAGNOSTIC_SMT2_SOLVER="$PWD/cvc5-wrapper.sh"
+            SOLVER=minisat
           fi
           set -o pipefail
           trace_args=()
