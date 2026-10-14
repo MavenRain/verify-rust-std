@@ -359,10 +359,10 @@ fn shortest_remaining_margin(minus: &Big, plus: &Big, digits: usize) -> Big {
         _ => unreachable!(),
     };
     let mut margin = minus.clone();
-    margin.add(plus);
+    margin.kani_add_model(plus);
     // Each factor fits a Digit on both 32-bit and 64-bit targets.
-    margin.mul_small(power(remaining / 2));
-    margin.mul_small(power(remaining - remaining / 2));
+    margin.kani_mul_small_model(power(remaining / 2));
+    margin.kani_mul_small_model(power(remaining - remaining / 2));
     margin
 }
 
@@ -679,7 +679,7 @@ pub mod dragon_verify {
         let right = Big::kani_valid_with_size(right_size);
         let scale = Big::kani_valid_with_size(scale_size);
         let reference = shortest_remaining_margin(&left, &right, MAX_SIG_DIGITS - 1 - digits);
-        let expected = match scale.cmp(&reference) {
+        let expected = match scale.kani_cmp_model(&reference) {
             Ordering::Less => KaniInvariantOrdering::Less,
             Ordering::Equal => KaniInvariantOrdering::Equal,
             Ordering::Greater => KaniInvariantOrdering::Greater,
@@ -1835,9 +1835,22 @@ pub mod dragon_verify {
     );
 
     fn check_mul_digits_model_agrees(digits: &[Digit]) {
-        let size = usize::from(kani::any::<u8>() & 0x3f);
-        kani::assume(size + digits.len() <= KANI_LIMBS);
-        let source = Big::kani_with_arbitrary_limbs(size);
+        macro_rules! check_sizes {
+            ($($size:literal),+ $(,)?) => {$(
+                if $size + digits.len() <= KANI_LIMBS {
+                    check_mul_digits_fixed_size::<$size>(digits);
+                }
+            )+};
+        }
+        check_sizes!(
+            0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23,
+            24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39
+        );
+    }
+
+    fn check_mul_digits_fixed_size<const SIZE: usize>(digits: &[Digit]) {
+        assert!(SIZE + digits.len() <= KANI_LIMBS);
+        let source = Big::kani_with_arbitrary_limbs(SIZE);
         let mut actual = source.clone();
         let mut modeled = source;
         let actual_start = &mut actual as *mut Big;
@@ -1845,12 +1858,13 @@ pub mod dragon_verify {
         assert!(actual.mul_digits(digits) as *mut Big == actual_start);
         assert!(modeled.kani_mul_digits_model(digits) as *mut Big == modeled_start);
         assert!(actual.kani_same_storage(&modeled));
-        kani::cover(size == 0, "cached multiplication accepts empty storage");
-        kani::cover(
-            size + digits.len() == KANI_LIMBS,
-            "cached multiplication accepts the largest model input",
-        );
-        kani::cover(actual.kani_size() == KANI_LIMBS, "cached multiplication appends a carry");
+        if SIZE == 0 {
+            kani::cover(true, "cached multiplication accepts empty storage");
+        }
+        if SIZE + digits.len() == KANI_LIMBS {
+            kani::cover(true, "cached multiplication accepts the largest model input");
+            kani::cover(actual.kani_size() == KANI_LIMBS, "cached multiplication appends a carry");
+        }
     }
 
     macro_rules! check_cached_mul_digits {
