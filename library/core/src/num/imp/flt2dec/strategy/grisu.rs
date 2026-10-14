@@ -332,6 +332,7 @@ fn generate_shortest<'a>(d: &Decoded, buf: &'a mut [MaybeUninit<u8>]) -> Shortes
     // render integral parts, while checking for the accuracy at each step.
     let mut ten_kappa = max_ten_kappa; // 10^kappa
     let mut remainder = plus1int; // digits yet to be rendered
+    #[cfg_attr(kani, kani::loop_modifies(&i, &ten_kappa, &remainder, &buf[..]))]
     #[cfg_attr(kani, kani::loop_invariant(
         i <= max_kappa as usize
             && ten_kappa as u64 == grisu_verify::proof_power10(max_kappa as usize - i)
@@ -390,6 +391,7 @@ fn generate_shortest<'a>(d: &Decoded, buf: &'a mut [MaybeUninit<u8>]) -> Shortes
     let mut remainder = plus1frac;
     let mut threshold = delta1frac;
     let mut ulp = 1;
+    #[cfg_attr(kani, kani::loop_modifies(&i, &remainder, &threshold, &ulp, &buf[..]))]
     #[cfg_attr(kani, kani::loop_invariant(
         i >= max_kappa as usize + 1 && i <= 16
             && remainder < 1u64 << e
