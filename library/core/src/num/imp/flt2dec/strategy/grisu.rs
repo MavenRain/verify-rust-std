@@ -1311,8 +1311,14 @@ pub mod grisu_verify {
         let f = kani::any::<u64>() | (1 << 63);
         let coefficient = kani::any::<u64>() | (1 << 63);
         let result = normalized_multiply_contract(f, coefficient);
-        kani::cover(f == 1 << 63 && coefficient == 1 << 63 && result == 1 << 62);
-        kani::cover(f == u64::MAX && coefficient == u64::MAX && result == u64::MAX - 1);
+        kani::cover(
+            f == 1 << 63 && coefficient == 1 << 63 && result == 1 << 62,
+            "minimum normalized product is covered",
+        );
+        kani::cover(
+            f == u64::MAX && coefficient == u64::MAX && result == u64::MAX - 1,
+            "maximum normalized product is covered",
+        );
     }
 
     fn arbitrary_normalized_interval() -> (u64, u64, u64, bool) {
