@@ -74,9 +74,12 @@ jobs:
           models=(diagnostic-input/**/*.out)
           [[ ${#models[@]} == 1 ]]
           ulimit -v 4194304
+          cbmc_build/bin/goto-instrument --reachability-slice --full-slice \
+            --property num::imp::flt2dec::strategy::dragon::generate_exact_digits.assigns.2 \
+            "${models[0]}" diagnostic-counter.out
           set -o pipefail
-          timeout 180s cbmc_build/bin/cbmc "${models[0]}" --unwind 33 \
-            --object-bits 14 --symex-cache-dereferences --slice-formula \
+          timeout 180s cbmc_build/bin/cbmc diagnostic-counter.out --unwind 33 \
+            --object-bits 14 --slice-formula \
             --property num::imp::flt2dec::strategy::dragon::generate_exact_digits.assigns.2 \
             --trace 2>&1 | tee counter.log
       - uses: actions/upload-artifact@v4
