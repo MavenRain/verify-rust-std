@@ -278,6 +278,7 @@ fn generate_integral_digits(
     let mut i = 0;
     let mut ten_kappa = max_ten_kappa;
     let mut remainder = plus1int;
+    let mut plus1rem = 0;
     #[cfg_attr(kani, kani::loop_invariant(
         i <= max_kappa as usize
             && ten_kappa as u64 == grisu_verify::proof_power10(max_kappa as usize - i)
@@ -288,7 +289,7 @@ fn generate_integral_digits(
             && grisu_verify::initialized_digits(buf, i)
     ))]
     #[cfg_attr(kani, kani::loop_modifies(
-        &i, &ten_kappa, &remainder,
+        &i, &ten_kappa, &remainder, &plus1rem,
         crate::ptr::slice_from_raw_parts(buf.as_ptr(), MAX_SIG_DIGITS)
     ))]
     loop {
@@ -296,7 +297,7 @@ fn generate_integral_digits(
         debug_assert!(q < 10);
         buf[i] = MaybeUninit::new(b'0' + q as u8);
         i += 1;
-        let plus1rem = ((r as u64) << e) + plus1frac;
+        plus1rem = ((r as u64) << e) + plus1frac;
         if plus1rem < delta1 || i > max_kappa as usize {
             let rounding = if plus1rem < delta1 {
                 Some((plus1rem, (ten_kappa as u64) << e))
@@ -401,7 +402,6 @@ fn generate_shortest<'a>(d: &Decoded, buf: &'a mut [MaybeUninit<u8>]) -> Shortes
     let mut remainder = plus1frac;
     let mut threshold = delta1frac;
     let mut ulp = 1;
-    let mut next_remainder = 0;
     #[cfg_attr(kani, kani::loop_invariant(
         i >= max_kappa as usize + 1 && i <= 16
             && remainder < 1u64 << e
@@ -411,7 +411,7 @@ fn generate_shortest<'a>(d: &Decoded, buf: &'a mut [MaybeUninit<u8>]) -> Shortes
             && grisu_verify::initialized_digits(buf, i)
     ))]
     #[cfg_attr(kani, kani::loop_modifies(
-        &i, &remainder, &threshold, &ulp, &next_remainder,
+        &i, &remainder, &threshold, &ulp,
         crate::ptr::slice_from_raw_parts(buf.as_ptr(), MAX_SIG_DIGITS)
     ))]
     loop {
@@ -427,18 +427,18 @@ fn generate_shortest<'a>(d: &Decoded, buf: &'a mut [MaybeUninit<u8>]) -> Shortes
         // divide `remainder` by `10^kappa`.
         // both are scaled by `2^e / 10^kappa`, so the latter is implicit here.
         let q = remainder >> e;
-        next_remainder = remainder & ((1 << e) - 1);
+        remainder &= (1 << e) - 1;
         debug_assert!(q < 10);
         buf[i] = MaybeUninit::new(b'0' + q as u8);
         i += 1;
 
-        if next_remainder < threshold {
+        if remainder < threshold {
             let ten_kappa = 1 << e; // implicit divisor
             return ShortestRounding {
                 // SAFETY: we initialized that memory above.
                 digits: unsafe { buf[..i].assume_init_mut() },
                 exp,
-                remainder: next_remainder,
+                remainder,
                 threshold,
                 plus1v: (plus1 - v.f) * ulp,
                 ten_kappa,
@@ -447,7 +447,6 @@ fn generate_shortest<'a>(d: &Decoded, buf: &'a mut [MaybeUninit<u8>]) -> Shortes
         }
 
         // restore invariants
-        remainder = next_remainder;
     }
 }
 
