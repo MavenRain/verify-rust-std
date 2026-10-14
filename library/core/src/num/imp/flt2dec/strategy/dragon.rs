@@ -371,6 +371,7 @@ pub fn format_exact<'a>(
         let proof_scale10 = scale.clone().mul_small(10).clone();
         #[cfg(kani)]
         let proof_max_limbs = crate::cmp::max(mant.kani_size(), proof_scale10.kani_size());
+        #[cfg_attr(kani, kani::loop_modifies(&mant, &buf[..]))]
         #[cfg_attr(kani, kani::loop_invariant(
             kani::index <= len
                 && mant.kani_size() <= proof_max_limbs
