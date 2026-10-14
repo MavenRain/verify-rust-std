@@ -314,6 +314,8 @@ fn generate_shortest<'a>(d: &Decoded, buf: &'a mut [MaybeUninit<u8>]) -> Shortes
     // this is an upper bound of `kappa` below.
     let (max_kappa, max_ten_kappa) = max_pow10_no_more_than(plus1int);
 
+    #[cfg(kani)]
+    assert!(grisu_verify::initialized_digits(buf, 0));
     let mut i = 0;
     let exp = max_kappa as i16 - minusk + 1;
 
