@@ -2271,6 +2271,11 @@ pub mod dragon_verify {
         F64_POW10_PREFIXES[GROUP].check(n)
     }
 
+    fn checked_pow10_complete<const EXPONENT: usize>(n: usize) -> usize {
+        assert!(EXPONENT < 0x7ff);
+        Pow10Prefix::for_range(-324..=308).check(n)
+    }
+
     fn checked_pow10_unit<const EXPONENT: usize>(n: usize) -> usize {
         assert_eq!(EXPONENT, 1023);
         Pow10Prefix::for_range(0..=0).check(n)
@@ -2557,8 +2562,32 @@ pub mod dragon_verify {
     check_exact_fixed_digits!(check_format_exact_32_digits, 32);
 
     for_each_finite_partition!(check_partition);
-    check_partition!(f64_exp_1, arbitrary_finite_f64_exponent, 1, false);
-    check_partition!(f64_exp_2046, arbitrary_finite_f64_exponent, 2046, false);
+    check_partition!(
+        f64_exp_1,
+        arbitrary_finite_f64_exponent,
+        1,
+        false,
+        41,
+        41,
+        crate::num::imp::flt2dec::estimator_verify::estimate_scaling_factor,
+        checked_pow10_complete,
+        2047,
+        partition_limb_count,
+        partition_limb_count
+    );
+    check_partition!(
+        f64_exp_2046,
+        arbitrary_finite_f64_exponent,
+        2046,
+        false,
+        41,
+        41,
+        crate::num::imp::flt2dec::estimator_verify::estimate_scaling_factor,
+        checked_pow10_complete,
+        2047,
+        partition_limb_count,
+        partition_limb_count
+    );
     // These inputs need fewer bigint limbs. Keep enough iterations for the
     // digit and rounding loops; unwinding assertions check every loop bound.
     check_partition!(
