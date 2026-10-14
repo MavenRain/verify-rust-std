@@ -148,7 +148,7 @@ jobs:
           (
             while sleep 60; do
               date -u +%FT%TZ
-              ps -A -o pid=,rss=,comm= | awk '$3 ~ /(^|\/)(cbmc|kissat|cvc5)$/ { print "solver RSS KiB:", $0 }'
+              ps -A -o pid=,rss=,comm= | awk '$3 ~ /(^|\/)(cbmc|kissat|cvc5|goto-instrument|goto-cc|kani-driver|kani-compiler|rustc)$/ { print "verifier RSS KiB:", $0 }'
             done
           ) &
           sampler_pid=$!
@@ -174,7 +174,7 @@ jobs:
             export KANI_DIAGNOSTIC_SMT2_SOLVER="$PWD/cvc5-wrapper.sh"
           fi
           set -o pipefail
-          scripts/run-kani.sh --kani-args --jobs 1 --harness-timeout "$PROOF_TIMEOUT" \
+          scripts/run-kani.sh --kani-args --verbose --jobs 1 --harness-timeout "$PROOF_TIMEOUT" \
             --solver "$SOLVER" --output-format regular --exact "${harness_args[@]}" \
             2>&1 | tee proofs.log
       - uses: actions/upload-artifact@v4
