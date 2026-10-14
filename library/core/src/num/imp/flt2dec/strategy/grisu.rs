@@ -413,6 +413,7 @@ fn generate_shortest<'a>(d: &Decoded, buf: &'a mut [MaybeUninit<u8>]) -> Shortes
         i >= max_kappa as usize + 1 && i <= 16
             && remainder < 1u64 << e
             && threshold <= remainder
+            && ulp < 1u64 << 50
             && threshold as u128 == delta1frac as u128 * (ulp & ((1u64 << 50) - 1)) as u128
             && ulp == grisu_verify::proof_power10(i - max_kappa as usize - 1)
             && (2 * ((plus.f - v.f) as u128) < delta1 as u128
@@ -1000,12 +1001,17 @@ pub mod grisu_verify {
         let exponent: usize = kani::any();
         kani::assume(exponent <= 15);
         let power = proof_power10(exponent);
+        assert!(power < 1u64 << 50);
         let ulp: u64 = kani::any();
         let delta: u64 = kani::any();
         let threshold: u64 = kani::any();
         let original = threshold as u128 == delta as u128 * ulp as u128 && ulp == power;
-        let narrowed =
-            threshold as u128 == delta as u128 * (ulp & ((1u64 << 50) - 1)) as u128 && ulp == power;
+        if ulp == power {
+            assert_eq!(ulp, ulp & ((1u64 << 50) - 1));
+        }
+        let narrowed = ulp < 1u64 << 50
+            && threshold as u128 == delta as u128 * (ulp & ((1u64 << 50) - 1)) as u128
+            && ulp == power;
         assert_eq!(original, narrowed);
 
         let shift: usize = kani::any();
