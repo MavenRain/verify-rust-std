@@ -107,7 +107,9 @@ jobs:
           elif [[ "$HARNESS_GROUP" == scaling-* || "$HARNESS_GROUP" == normalization-scaling-* ]]; then
             echo num::imp::flt2dec::strategy::grisu::grisu_verify::check_scale_shortest_73 > harnesses.txt
           elif [[ "$HARNESS_GROUP" == arithmetic-* ]]; then
-            if [[ "$HARNESS_GROUP" == *decimal* ]]; then
+            if [[ "$HARNESS_GROUP" == *dragon-digit* ]]; then
+              echo num::imp::flt2dec::strategy::dragon::dragon_verify::check_digit_remainder_contract > harnesses.txt
+            elif [[ "$HARNESS_GROUP" == *decimal* ]]; then
               echo num::imp::flt2dec::strategy::grisu::grisu_verify::check_decimal_termination > harnesses.txt
             elif [[ "$HARNESS_GROUP" =~ ^arithmetic-smt-product-contract-([0-9]{2})-([0-9]{2})-sum$ ]]; then
               first=$((10#${BASH_REMATCH[1]}))
