@@ -116,6 +116,8 @@ jobs:
             echo num::imp::flt2dec::strategy::grisu::grisu_verify::check_normalized_multiply > harnesses.txt
           elif [[ "$HARNESS_GROUP" =~ ^grisu-exact-single-(f32_0[0-3]|f64_([0-2][0-9]|3[01]))$ ]]; then
             printf 'num::imp::flt2dec::strategy::grisu::grisu_verify::%s::check_format_exact_opt\n' "${BASH_REMATCH[1]}" > harnesses.txt
+          elif [[ "$HARNESS_GROUP" == grisu-shortest-trace-31 ]]; then
+            echo num::imp::flt2dec::strategy::grisu::grisu_verify::f64_31::check_format_shortest_opt > harnesses.txt
           elif [[ "$HARNESS_GROUP" == dragon-digit-remainder ]]; then
             echo num::imp::flt2dec::strategy::dragon::dragon_verify::check_digit_remainder_contract > harnesses.txt
           elif [[ "$HARNESS_GROUP" == dragon-loop-instrumentation ]]; then
@@ -206,12 +208,16 @@ jobs:
             export KANI_DIAGNOSTIC_SMT2_SOLVER="$PWD/cvc5-wrapper.sh"
           fi
           set -o pipefail
+          trace_args=()
+          if [[ "$HARNESS_GROUP" == grisu-shortest-trace-31 ]]; then
+            trace_args=(--export-json proof-results.json --concrete-playback print)
+          fi
           if [[ "$HARNESS_GROUP" == dragon-loop-instrumentation ]]; then
             # Keep the runner alive to upload the model when instrumentation grows.
             ulimit -v 4194304
           fi
           scripts/run-kani.sh --kani-args --verbose --jobs 1 --harness-timeout "$PROOF_TIMEOUT" \
-            --solver "$SOLVER" --output-format regular --exact "${harness_args[@]}" \
+            --solver "$SOLVER" --output-format regular "${trace_args[@]}" --exact "${harness_args[@]}" \
             2>&1 | tee proofs.log
       - uses: actions/upload-artifact@v4
         if: always()
@@ -219,6 +225,7 @@ jobs:
           name: proof-log-${{ matrix.group }}
           path: |
             proofs.log
+            proof-results.json
             cbmc-stack.txt
             target/kani_verify_std/target/**/out/*check_scale_shortest_73.out
             target/kani_verify_std/target/**/out/*check_normalize_shortest.out
@@ -227,6 +234,7 @@ jobs:
             target/kani_verify_std/target/**/out/*f64_exp_1023*check_format_exact_opt.out
             target/kani_verify_std/target/**/out/*f64_exp_1023*check_format_shortest_opt.out
             target/kani_verify_std/target/**/out/*dragon*f64_exp_1023*check_format_exact.out
+            target/kani_verify_std/target/**/out/*grisu*f64_31*check_format_shortest_opt.out
           if-no-files-found: ignore
 
   scaling-properties:
