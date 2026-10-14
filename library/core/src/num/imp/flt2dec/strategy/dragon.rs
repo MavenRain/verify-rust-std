@@ -229,14 +229,22 @@ pub fn format_shortest<'a>(
     let mut d = 0;
     #[cfg(not(kani))]
     let mut d;
+    #[cfg(kani)]
+    let mut up_candidate = Big::from_small(0);
+    #[cfg(not(kani))]
+    let mut up_candidate;
     let mut i = 0;
+    #[cfg(kani)]
+    let proof_zero = Big::from_small(0);
     #[cfg(kani)]
     let proof_scale10 = scale.clone().mul_small(10).clone();
     #[cfg(kani)]
     let proof_max_limbs = crate::cmp::max(mant.kani_size(), proof_scale10.kani_size());
-    #[cfg_attr(kani, kani::loop_modifies(&i, &d, &mant, &minus, &plus, &down, &up, &buf[..]))]
+    #[cfg_attr(kani, kani::loop_modifies(&i, &d, &mant, &minus, &plus, &up_candidate, &down, &up, &buf[..]))]
     #[cfg_attr(kani, kani::loop_invariant(
         i < MAX_SIG_DIGITS
+            && mant.kani_invariant_size() > 0
+            && minus.kani_invariant_size() > 0 && plus.kani_invariant_size() > 0
             && mant.kani_invariant_valid_storage()
             && minus.kani_invariant_valid_storage() && plus.kani_invariant_valid_storage()
             && mant.kani_invariant_size() <= proof_max_limbs
@@ -245,6 +253,8 @@ pub fn format_shortest<'a>(
             && mant.kani_invariant_less_than(&proof_scale10)
             && minus.kani_invariant_less_than(&proof_scale10)
             && plus.kani_invariant_less_than(&proof_scale10)
+            && proof_zero.kani_invariant_less_than(&minus)
+            && proof_zero.kani_invariant_less_than(&plus)
             && (i == 0 || match proof_scale10.kani_invariant_cmp_scaled_sum(&mant, &plus, 0) {
                 KaniInvariantOrdering::Less => (Ordering::Less as i8) >= rounding as i8,
                 KaniInvariantOrdering::Equal => (Ordering::Equal as i8) >= rounding as i8,
@@ -304,7 +314,8 @@ pub fn format_shortest<'a>(
         // - stop and round `up` (increase the last digit) when `scale < mant + plus` (or `<=`).
         // - keep generating otherwise.
         down = mant.cmp(&minus) < rounding;
-        up = scale.cmp(mant.clone().add(&plus)) < rounding;
+        up_candidate = mant.clone();
+        up = scale.cmp(up_candidate.add(&plus)) < rounding;
         if down || up {
             break;
         } // we have the shortest representation, proceed to the rounding
