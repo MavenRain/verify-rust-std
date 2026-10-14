@@ -339,12 +339,12 @@ fn generate_shortest<'a>(d: &Decoded, buf: &'a mut [MaybeUninit<u8>]) -> Shortes
             && (remainder as u64) < 10 * ten_kappa as u64
             && remainder <= plus1int
             && ((remainder as u128) << e) + plus1frac as u128 >= delta1 as u128
-            && kani::mem::can_dereference(crate::ptr::slice_from_raw_parts(buf.as_ptr().cast::<u8>(), i))
-            && kani::internal::kani_forall(0usize, MAX_SIG_DIGITS, |j| {
-                j >= i || unsafe { buf[j].assume_init() >= b'0' && buf[j].assume_init() <= b'9' }
-            })
+            && grisu_verify::initialized_digits(buf, i)
     ))]
-    #[cfg_attr(kani, kani::loop_modifies(&i, &ten_kappa, &remainder, &buf[..]))]
+    #[cfg_attr(kani, kani::loop_modifies(
+        &i, &ten_kappa, &remainder,
+        crate::ptr::slice_from_raw_parts(buf.as_ptr(), MAX_SIG_DIGITS)
+    ))]
     loop {
         // we always have at least one digit to render, as `plus1 >= 10^kappa`
         // invariants:
@@ -391,18 +391,19 @@ fn generate_shortest<'a>(d: &Decoded, buf: &'a mut [MaybeUninit<u8>]) -> Shortes
     let mut remainder = plus1frac;
     let mut threshold = delta1frac;
     let mut ulp = 1;
+    let mut next_remainder = 0;
     #[cfg_attr(kani, kani::loop_invariant(
         i >= max_kappa as usize + 1 && i <= 16
             && remainder < 1u64 << e
             && threshold <= remainder
             && threshold as u128 == delta1frac as u128 * ulp as u128
             && ulp == grisu_verify::proof_power10(i - max_kappa as usize - 1)
-            && kani::mem::can_dereference(crate::ptr::slice_from_raw_parts(buf.as_ptr().cast::<u8>(), i))
-            && kani::internal::kani_forall(0usize, MAX_SIG_DIGITS, |j| {
-                j >= i || unsafe { buf[j].assume_init() >= b'0' && buf[j].assume_init() <= b'9' }
-            })
+            && grisu_verify::initialized_digits(buf, i)
     ))]
-    #[cfg_attr(kani, kani::loop_modifies(&i, &remainder, &threshold, &ulp, &buf[..]))]
+    #[cfg_attr(kani, kani::loop_modifies(
+        &i, &remainder, &threshold, &ulp, &next_remainder,
+        crate::ptr::slice_from_raw_parts(buf.as_ptr(), MAX_SIG_DIGITS)
+    ))]
     loop {
         // the next digit should be significant as we've tested that before breaking out
         // invariants, where `m = max_kappa + 1` (# of digits in the integral part):
@@ -416,18 +417,18 @@ fn generate_shortest<'a>(d: &Decoded, buf: &'a mut [MaybeUninit<u8>]) -> Shortes
         // divide `remainder` by `10^kappa`.
         // both are scaled by `2^e / 10^kappa`, so the latter is implicit here.
         let q = remainder >> e;
-        let r = remainder & ((1 << e) - 1);
+        next_remainder = remainder & ((1 << e) - 1);
         debug_assert!(q < 10);
         buf[i] = MaybeUninit::new(b'0' + q as u8);
         i += 1;
 
-        if r < threshold {
+        if next_remainder < threshold {
             let ten_kappa = 1 << e; // implicit divisor
             return ShortestRounding {
                 // SAFETY: we initialized that memory above.
                 digits: unsafe { buf[..i].assume_init_mut() },
                 exp,
-                remainder: r,
+                remainder: next_remainder,
                 threshold,
                 plus1v: (plus1 - v.f) * ulp,
                 ten_kappa,
@@ -436,7 +437,7 @@ fn generate_shortest<'a>(d: &Decoded, buf: &'a mut [MaybeUninit<u8>]) -> Shortes
         }
 
         // restore invariants
-        remainder = r;
+        remainder = next_remainder;
     }
 }
 
@@ -930,6 +931,20 @@ pub mod grisu_verify {
     // not arbitrary slice lengths. Unwinding assertions remain enabled.
     const PROOF_BUFLEN: usize = 32;
     const _: () = assert!(PROOF_BUFLEN <= u8::MAX as usize);
+
+    pub(super) fn initialized_digits(buf: &[MaybeUninit<u8>], len: usize) -> bool {
+        macro_rules! check_digit {
+            ($($index:literal),+ $(,)?) => {
+                true $(&& (len <= $index || (
+                    kani::mem::can_dereference(unsafe { buf.as_ptr().add($index).cast::<u8>() })
+                        && unsafe { buf[$index].assume_init() >= b'0' && buf[$index].assume_init() <= b'9' }
+                )))+
+            };
+        }
+        len <= MAX_SIG_DIGITS
+            && buf.len() >= MAX_SIG_DIGITS
+            && check_digit!(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16)
+    }
 
     // Decode gives minus = 1. Only normal powers of two have plus = 2,
     // with the f32 or f64 significand shifted by two. Callers prove these
