@@ -82,3 +82,26 @@ diff --git a/kani-compiler/src/codegen_cprover_gotoc/context/goto_ctx.rs b/kani-
              current_loop_decreases: None,
          }
      }
+diff --git a/kani-compiler/src/kani_middle/transform/loop_contracts.rs b/kani-compiler/src/kani_middle/transform/loop_contracts.rs
+--- a/kani-compiler/src/kani_middle/transform/loop_contracts.rs
++++ b/kani-compiler/src/kani_middle/transform/loop_contracts.rs
+@@ -209,11 +209,17 @@
+                 else {
+                     continue;
+                 };
+-                if fn_def.name() == "kani::KaniIter::first" {
++                let function_name = fn_def.name();
++                if function_name == "kani::KaniIter::first"
++                    || function_name.ends_with("::kani::KaniIter::first")
++                {
+                     current_firstpat = dest.local;
+                     current_firstpat_pos = blockid;
+                 }
+-                if fn_def.name() == "kani::KaniIter::nth" && current_firstpat != 0 {
++                if current_firstpat != 0
++                    && (function_name == "kani::KaniIter::nth"
++                        || function_name.ends_with("::kani::KaniIter::nth"))
++                {
+                     first_pats_and_nth_pats.push((
+                         current_firstpat,
+                         dest.local,
