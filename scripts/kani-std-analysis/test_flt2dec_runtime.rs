@@ -1,4 +1,4 @@
-#![feature(staged_api, cfg_target_has_reliable_f16_f128, ergonomic_clones, float_masks, f16, f128)]
+#![feature(staged_api, cfg_target_has_reliable_f16_f128, ergonomic_clones, float_masks, f16)]
 #![allow(internal_features, unexpected_cfgs, dead_code)]
 #![unstable(feature = "flt2dec_runtime_test", issue = "none")]
 

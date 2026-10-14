@@ -278,7 +278,11 @@ fn generate_integral_digits(
     let mut i = 0;
     let mut ten_kappa = max_ten_kappa;
     let mut remainder = plus1int;
+    // The loop contract takes this local's address before the first digit.
+    #[cfg(kani)]
     let mut plus1rem = 0;
+    #[cfg(not(kani))]
+    let mut plus1rem;
     #[cfg_attr(kani, kani::loop_invariant(
         i <= max_kappa as usize
             && ten_kappa as u64 == grisu_verify::proof_power10(max_kappa as usize - i)
