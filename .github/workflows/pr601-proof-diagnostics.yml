@@ -8,7 +8,7 @@ on:
       suite:
         type: choice
         default: grid
-        options: [grid, scaling, generators, properties, normalization, arithmetic, grisu-generators, arithmetic-properties, exact-digits, runtime, verifier]
+        options: [grid, scaling, generators, properties, normalization, arithmetic, grisu-generators, arithmetic-properties, exact-digits, runtime, verifier, counter]
       groups:
         description: Optional JSON array of named diagnostic groups
         type: string
@@ -51,6 +51,38 @@ permissions:
   actions: read
 
 jobs:
+  counter:
+    if: inputs.suite == 'counter'
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache/restore@v4
+        with:
+          path: cbmc_build/bin
+          key: cbmc-flat-smt-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('scripts/setup-flat-smt-cbmc.sh', 'scripts/cbmc-skip-unused-loop-assigns.patch') }}
+          fail-on-cache-miss: true
+      - uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          run-id: 38516410957
+          name: proof-log-dragon-loop-instrumentation
+          path: diagnostic-input
+      - name: Check the generated counter frame
+        run: |
+          mapfile -t models < <(rg --files diagnostic-input | rg '\.out$')
+          [[ ${#models[@]} == 1 ]]
+          ulimit -v 4194304
+          set -o pipefail
+          timeout 180s cbmc_build/bin/cbmc "${models[0]}" --unwind 33 \
+            --object-bits 14 --symex-cache-dereferences --slice-formula \
+            --property num::imp::flt2dec::strategy::dragon::generate_exact_digits.assigns.2 \
+            --trace 2>&1 | tee counter.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: dragon-counter-frame
+          path: counter.log
   verifier:
     if: inputs.suite == 'verifier'
     runs-on: ${{ matrix.os }}
@@ -84,7 +116,7 @@ jobs:
       - run: rustup toolchain install nightly-2026-09-25 --profile minimal
       - run: bash scripts/kani-std-analysis/test_flt2dec_runtime.sh
   proofs:
-    if: inputs.suite != 'properties' && inputs.suite != 'arithmetic-properties' && inputs.suite != 'runtime' && inputs.suite != 'verifier'
+    if: inputs.suite != 'properties' && inputs.suite != 'arithmetic-properties' && inputs.suite != 'runtime' && inputs.suite != 'verifier' && inputs.suite != 'counter'
     runs-on: ${{ inputs.runner || 'ubuntu-latest' }}
     timeout-minutes: ${{ inputs.suite == 'generators' && 180 || 90 }}
     strategy:
@@ -97,7 +129,7 @@ jobs:
       KANI_JOBS: 1
       KANI_PATCHED_CBMC: 'true'
       KANI_OBJECT_BITS: ${{ (inputs.suite == 'generators' || inputs.suite == 'grisu-generators' || inputs.suite == 'exact-digits') && '14' || '12' }}
-      PROOF_TIMEOUT: ${{ inputs.suite == 'generators' && '3600s' || (inputs.suite == 'grisu-generators' || inputs.suite == 'exact-digits') && '1800s' || '420s' }}
+      PROOF_TIMEOUT: ${{ startsWith(matrix.group, 'grisu-shortest-single-') && '7200s' || inputs.suite == 'generators' && '3600s' || (inputs.suite == 'grisu-generators' || inputs.suite == 'exact-digits') && '1800s' || '420s' }}
       KANI_SYMEX_CACHE_DEREFERENCES: 'true'
       KANI_ARRAY_FIELD_SENSITIVITY: 'true'
       HARNESS_GROUP: ${{ matrix.group }}
@@ -143,6 +175,8 @@ jobs:
             echo num::imp::flt2dec::strategy::grisu::grisu_verify::check_normalized_multiply > harnesses.txt
           elif [[ "$HARNESS_GROUP" =~ ^grisu-exact-single-(f32_0[0-3]|f64_([0-2][0-9]|3[01]))$ ]]; then
             printf 'num::imp::flt2dec::strategy::grisu::grisu_verify::%s::check_format_exact_opt\n' "${BASH_REMATCH[1]}" > harnesses.txt
+          elif [[ "$HARNESS_GROUP" =~ ^grisu-shortest-single-(f32_0[0-3]|f64_([0-2][0-9]|3[01]))$ ]]; then
+            printf 'num::imp::flt2dec::strategy::grisu::grisu_verify::%s::check_format_shortest_opt\n' "${BASH_REMATCH[1]}" > harnesses.txt
           elif [[ "$HARNESS_GROUP" == grisu-shortest-trace-31 ]]; then
             echo num::imp::flt2dec::strategy::grisu::grisu_verify::f64_31::check_format_shortest_opt > harnesses.txt
           elif [[ "$HARNESS_GROUP" == dragon-digit-remainder ]]; then
