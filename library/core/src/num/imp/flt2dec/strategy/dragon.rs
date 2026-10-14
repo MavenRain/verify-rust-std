@@ -228,7 +228,7 @@ pub fn format_shortest<'a>(
     let proof_scale10 = scale.clone().mul_small(10).clone();
     #[cfg(kani)]
     let proof_max_limbs = crate::cmp::max(mant.kani_size(), proof_scale10.kani_size());
-    #[cfg_attr(kani, kani::loop_modifies(i, mant, minus, plus, down, up, &buf[..]))]
+    #[cfg_attr(kani, kani::loop_modifies(&i, &mant, &minus, &plus, &down, &up, &buf[..]))]
     #[cfg_attr(kani, kani::loop_invariant(
         i < MAX_SIG_DIGITS
             && mant.kani_valid_storage() && minus.kani_valid_storage() && plus.kani_valid_storage()
