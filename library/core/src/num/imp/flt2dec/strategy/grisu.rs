@@ -413,11 +413,11 @@ fn generate_shortest<'a>(d: &Decoded, buf: &'a mut [MaybeUninit<u8>]) -> Shortes
         i >= max_kappa as usize + 1 && i <= 16
             && remainder < 1u64 << e
             && threshold <= remainder
-            && threshold as u128 == delta1frac as u128 * ulp as u128
+            && threshold as u128 == delta1frac as u128 * (ulp & ((1u64 << 50) - 1)) as u128
             && ulp == grisu_verify::proof_power10(i - max_kappa as usize - 1)
             && (2 * ((plus.f - v.f) as u128) < delta1 as u128
                 || remainder.wrapping_sub(threshold)
-                    << (64 - (e - 16 + (i - max_kappa as usize - 1))) != 0)
+                    << ((64 - (e - 16 + (i - max_kappa as usize - 1))) as u8) != 0)
             && grisu_verify::initialized_digits(buf, i)
     ))]
     #[cfg_attr(kani, kani::loop_modifies(
@@ -993,6 +993,30 @@ pub mod grisu_verify {
             16 => 10000000000000000,
             _ => 0,
         }
+    }
+
+    #[kani::proof]
+    fn check_fractional_invariant_encoding() {
+        let exponent: usize = kani::any();
+        kani::assume(exponent <= 15);
+        let power = proof_power10(exponent);
+        let ulp: u64 = kani::any();
+        let delta: u64 = kani::any();
+        let threshold: u64 = kani::any();
+        let original = threshold as u128 == delta as u128 * ulp as u128 && ulp == power;
+        let narrowed =
+            threshold as u128 == delta as u128 * (ulp & ((1u64 << 50) - 1)) as u128 && ulp == power;
+        assert_eq!(original, narrowed);
+
+        let shift: usize = kani::any();
+        let value: u64 = kani::any();
+        kani::assume(shift < 64);
+        assert_eq!(value << shift, value << (shift as u8));
+        kani::cover(
+            exponent == 15 && ulp == power,
+            "the largest fractional decimal power is checked",
+        );
+        kani::cover(shift == 63, "the maximum defined shift is checked");
     }
 
     fn normalized_shortest_valid(

@@ -248,6 +248,8 @@ jobs:
             echo num::imp::flt2dec::strategy::grisu::grisu_verify::f64_31::check_format_shortest_opt > harnesses.txt
           elif [[ "$HARNESS_GROUP" =~ ^grisu-shortest-smt-(sum|off)$ ]]; then
             echo num::imp::flt2dec::strategy::grisu::grisu_verify::f32_00::check_format_shortest_opt > harnesses.txt
+          elif [[ "$HARNESS_GROUP" == grisu-invariant-encoding ]]; then
+            echo num::imp::flt2dec::strategy::grisu::grisu_verify::check_fractional_invariant_encoding > harnesses.txt
           elif [[ "$HARNESS_GROUP" == dragon-digit-remainder ]]; then
             echo num::imp::flt2dec::strategy::dragon::dragon_verify::check_digit_remainder_contract > harnesses.txt
           elif [[ "$HARNESS_GROUP" == dragon-loop-instrumentation ]]; then
