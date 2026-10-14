@@ -432,7 +432,18 @@ fn generate_shortest<'a>(d: &Decoded, buf: &'a mut [MaybeUninit<u8>]) -> Shortes
         // - `plus1frac * 10^(n-m) = d[m..n-1] * 2^e + remainder`
 
         remainder *= 10; // won't overflow, `2^e * 10 < 2^64`
-        threshold *= 10;
+        #[cfg(kani)]
+        {
+            threshold = grisu_verify::advance_fraction_threshold(
+                delta1frac,
+                i - max_kappa as usize - 1,
+                threshold,
+            );
+        }
+        #[cfg(not(kani))]
+        {
+            threshold *= 10;
+        }
         ulp *= 10;
 
         // divide `remainder` by `10^kappa`.
@@ -996,6 +1007,30 @@ pub mod grisu_verify {
         }
     }
 
+    #[kani::requires(exponent <= 15)]
+    #[kani::requires(threshold <= u64::MAX / 10)]
+    #[kani::requires(threshold as u128 == proof_threshold(delta, exponent))]
+    #[kani::ensures(|result| *result as u128 == proof_threshold(delta, exponent + 1))]
+    pub(super) fn advance_fraction_threshold(delta: u64, exponent: usize, threshold: u64) -> u64 {
+        let _ = (delta, exponent);
+        threshold * 10
+    }
+
+    #[kani::proof_for_contract(advance_fraction_threshold)]
+    fn check_advance_fraction_threshold() {
+        let delta: u64 = kani::any();
+        let exponent = usize::from(kani::any::<u8>() & 15);
+        let threshold: u64 = kani::any();
+        let result = advance_fraction_threshold(delta, exponent, threshold);
+        kani::cover(exponent == 15, "threshold advancement checks the last fractional step");
+        kani::cover(delta == 0 && result == 0, "threshold advancement includes zero");
+        kani::cover(
+            exponent == 0 && threshold == u64::MAX / 10,
+            "threshold advancement checks the maximum safe product",
+        );
+    }
+
+    #[rustc_force_inline]
     pub(super) fn proof_threshold(delta: u64, exponent: usize) -> u128 {
         // Keep multiplication inside each arm so every factor is constant.
         match exponent {
@@ -1015,6 +1050,7 @@ pub mod grisu_verify {
             13 => delta as u128 * 10_000_000_000_000,
             14 => delta as u128 * 100_000_000_000_000,
             15 => delta as u128 * 1_000_000_000_000_000,
+            16 => delta as u128 * 10_000_000_000_000_000,
             _ => 0,
         }
     }
@@ -2255,6 +2291,7 @@ pub mod grisu_verify {
                 #[kani::stub(round_and_weed, stub_round_and_weed)]
                 #[kani::stub(div_rem_pow10, div_rem_pow10_model)]
                 #[kani::stub_verified(round_shortest_contract)]
+                #[kani::stub_verified(advance_fraction_threshold)]
                 $(
                     #[kani::stub(scale_shortest, stub_scale_shortest)]
                     #[kani::stub_verified($scaling_contract)]
