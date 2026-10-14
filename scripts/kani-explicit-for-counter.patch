@@ -34,7 +34,7 @@ diff --git a/kani-compiler/src/codegen_cprover_gotoc/codegen/statement.rs b/kani
 +        let synthetic_for_frame = self.current_loop_modifies.iter().any(|target| {
 +            matches!(
 +                target.value(),
-+                cprover_bindings::goto_program::ExprValue::Symbol { identifier }
++                ExprValue::Symbol { identifier }
 +                    if identifier.to_string().rsplit("::").next()
 +                        .is_some_and(|name| name.starts_with("kani_index_"))
 +            )
