@@ -7,6 +7,8 @@
 
 use flt2dec::{Decoded, MAX_SIG_DIGITS, round_up};
 
+#[cfg(kani)]
+use crate::kani;
 use crate::mem::MaybeUninit;
 use crate::num::imp::diy_float::Fp;
 use crate::num::imp::flt2dec;
@@ -330,6 +332,18 @@ fn generate_shortest<'a>(d: &Decoded, buf: &'a mut [MaybeUninit<u8>]) -> Shortes
     // render integral parts, while checking for the accuracy at each step.
     let mut ten_kappa = max_ten_kappa; // 10^kappa
     let mut remainder = plus1int; // digits yet to be rendered
+    #[cfg_attr(kani, kani::loop_invariant(
+        i <= max_kappa as usize
+            && ten_kappa as u64 == grisu_verify::proof_power10(max_kappa as usize - i)
+            && ten_kappa <= max_ten_kappa
+            && (remainder as u64) < 10 * ten_kappa as u64
+            && remainder <= plus1int
+            && ((remainder as u128) << e) + plus1frac as u128 >= delta1 as u128
+            && kani::mem::can_dereference(crate::ptr::slice_from_raw_parts(buf.as_ptr().cast::<u8>(), i))
+            && kani::internal::kani_forall(0usize, i, |j| unsafe {
+                buf[j].assume_init() >= b'0' && buf[j].assume_init() <= b'9'
+            })
+    ))]
     loop {
         // we always have at least one digit to render, as `plus1 >= 10^kappa`
         // invariants:
@@ -376,6 +390,17 @@ fn generate_shortest<'a>(d: &Decoded, buf: &'a mut [MaybeUninit<u8>]) -> Shortes
     let mut remainder = plus1frac;
     let mut threshold = delta1frac;
     let mut ulp = 1;
+    #[cfg_attr(kani, kani::loop_invariant(
+        i >= max_kappa as usize + 1 && i <= 16
+            && remainder < 1u64 << e
+            && threshold <= remainder
+            && threshold as u128 == delta1frac as u128 * ulp as u128
+            && ulp == grisu_verify::proof_power10(i - max_kappa as usize - 1)
+            && kani::mem::can_dereference(crate::ptr::slice_from_raw_parts(buf.as_ptr().cast::<u8>(), i))
+            && kani::internal::kani_forall(0usize, i, |j| unsafe {
+                buf[j].assume_init() >= b'0' && buf[j].assume_init() <= b'9'
+            })
+    ))]
     loop {
         // the next digit should be significant as we've tested that before breaking out
         // invariants, where `m = max_kappa + 1` (# of digits in the integral part):
@@ -907,6 +932,29 @@ pub mod grisu_verify {
     // Decode gives minus = 1. Only normal powers of two have plus = 2,
     // with the f32 or f64 significand shifted by two. Callers prove these
     // conditions from the real decoder, without restricting finite float bits.
+    pub(super) fn proof_power10(exponent: usize) -> u64 {
+        match exponent {
+            0 => 1,
+            1 => 10,
+            2 => 100,
+            3 => 1000,
+            4 => 10000,
+            5 => 100000,
+            6 => 1000000,
+            7 => 10000000,
+            8 => 100000000,
+            9 => 1000000000,
+            10 => 10000000000,
+            11 => 100000000000,
+            12 => 1000000000000,
+            13 => 10000000000000,
+            14 => 100000000000000,
+            15 => 1000000000000000,
+            16 => 10000000000000000,
+            _ => 0,
+        }
+    }
+
     fn normalized_shortest_valid(
         state: (u64, u64, u64, i16),
         mant: u64,
