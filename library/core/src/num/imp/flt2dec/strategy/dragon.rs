@@ -364,7 +364,11 @@ fn generate_exact_digits(
     let proof_scale10 = scale.clone().mul_small(10).clone();
     #[cfg(kani)]
     let proof_max_limbs = crate::cmp::max(mant.kani_size(), proof_scale10.kani_size());
-    #[cfg_attr(kani, kani::loop_modifies(&*mant, &buf[..]))]
+    #[cfg(kani)]
+    let mut d = 0;
+    #[cfg(not(kani))]
+    let mut d;
+    #[cfg_attr(kani, kani::loop_modifies(&*mant, &buf[..], &d))]
     #[cfg_attr(kani, kani::loop_invariant(
         kani::index <= len
             && len <= dragon_verify::PROOF_BUFLEN
@@ -381,7 +385,7 @@ fn generate_exact_digits(
             return true;
         }
 
-        let mut d = 0;
+        d = 0;
         if *mant >= *scale8 {
             mant.sub(scale8);
             d += 8;

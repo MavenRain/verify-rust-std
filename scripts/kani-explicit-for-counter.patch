@@ -25,3 +25,30 @@ diff --git a/kani-compiler/src/codegen_cprover_gotoc/codegen/statement.rs b/kani
                  if localname.contains("kani_loop_decreases") {
                      if !self
                          .queries
+@@ -768,6 +785,26 @@
+     ) -> Stmt {
+         debug!(?func, ?args, ?destination, ?span, "codegen_funcall");
+         let instance_opt = self.get_instance(func);
++        // The for-loop transformation initializes the pattern before the loop
++        // and assigns its nth value inside it. Its MIR local needs the same
++        // explicit frame treatment as the synthetic iteration counter.
++        if !self.current_loop_modifies.is_empty()
++            && instance_opt.is_some_and(|instance| {
++                matches!(
++                    instance.ty().kind(),
++                    TyKind::RigidTy(RigidTy::FnDef(def, _))
++                        if def.name() == "kani::KaniIter::first"
++                )
++            })
++        {
++            let location = self.codegen_span_stable(span);
++            let pattern = unwrap_or_return_codegen_unimplemented_stmt!(
++                self,
++                self.codegen_place_stable(destination, location)
++            )
++            .goto_expr;
++            self.current_loop_modifies.push(pattern);
++        }
+         if let Some(instance) = instance_opt
+             && matches!(instance.kind, InstanceKind::LlvmIntrinsic)
+         {
