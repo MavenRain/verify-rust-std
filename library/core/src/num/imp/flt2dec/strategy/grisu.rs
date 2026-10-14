@@ -951,6 +951,7 @@ pub mod grisu_verify {
     const PROOF_BUFLEN: usize = 32;
     const _: () = assert!(PROOF_BUFLEN <= u8::MAX as usize);
 
+    #[rustc_force_inline]
     pub(super) fn initialized_digits(buf: &[MaybeUninit<u8>], len: usize) -> bool {
         macro_rules! check_digit {
             ($($index:literal),+ $(,)?) => {
