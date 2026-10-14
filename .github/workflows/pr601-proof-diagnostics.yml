@@ -55,6 +55,12 @@ jobs:
     if: inputs.suite == 'counter'
     runs-on: ubuntu-latest
     timeout-minutes: 8
+    strategy:
+      fail-fast: false
+      matrix:
+        mode: ${{ fromJSON(inputs.modes || '["baseline"]') }}
+    env:
+      CBMC_MODE: ${{ matrix.mode }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/cache/restore@v4
@@ -77,10 +83,18 @@ jobs:
           [[ ${#models[@]} == 1 ]]
           ulimit -v 4194304
           cp "${models[0]}" diagnostic-counter.out
+          extra_args=()
+          case "$CBMC_MODE" in
+            baseline) ;;
+            no-simplify) extra_args+=(--no-simplify) ;;
+            no-propagation) extra_args+=(--no-propagation) ;;
+            no-array-fields) extra_args+=(--no-array-field-sensitivity) ;;
+            *) exit 2 ;;
+          esac
           timeout 180s cbmc_build/bin/cbmc diagnostic-counter.out --unwind 41 \
             --no-malloc-may-fail --no-undefined-shift-check --no-signed-overflow-check \
             --nan-check --no-self-loops-to-assumptions --no-pointer-primitive-check \
-            --object-bits 14 --slice-formula --verbosity 9 > counter.log 2>&1 &
+            --object-bits 14 --slice-formula --verbosity 9 "${extra_args[@]}" > counter.log 2>&1 &
           driver_pid=$!
           (
             sleep 30
@@ -99,7 +113,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: dragon-counter-frame
+          name: dragon-counter-frame-${{ matrix.mode }}
           path: |
             counter.log
             cbmc-stack.txt
