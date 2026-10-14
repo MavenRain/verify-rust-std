@@ -103,17 +103,30 @@ jobs:
             grisu-fraction-step) extra_args+=(--property num::imp::flt2dec::strategy::grisu::generate_shortest.loop_invariant_step.1) ;;
             grisu-integral-base) extra_args+=(--property num::imp::flt2dec::strategy::grisu::generate_integral_digits.loop_invariant_base.1) ;;
             grisu-integral-step) extra_args+=(--property num::imp::flt2dec::strategy::grisu::generate_integral_digits.loop_invariant_step.1) ;;
-            grisu-safety)
+            grisu-safety|grisu-claim-*)
               cbmc_build/bin/cbmc diagnostic-counter.out --no-malloc-may-fail \
                 --no-undefined-shift-check --no-signed-overflow-check --nan-check \
                 --no-self-loops-to-assumptions --no-pointer-primitive-check \
                 --object-bits "$object_bits" --show-properties --json-ui > properties.json
-              python3 -I - <<'PY' > selected-properties.txt
+              python3 -I - "$CBMC_MODE" <<'PY' > selected-properties.txt
           import json
+          import sys
           from pathlib import Path
           reports = json.loads(Path("properties.json").read_text())
           properties = [item for report in reports for item in report.get("properties", [])]
-          names = [item["name"] for item in properties if item["class"] not in {"cover", "reachability_check"}]
+          mode = sys.argv[1]
+          labels = {
+              "grisu-claim-capacity": "fractional digit capacity",
+              "grisu-claim-width": "fractional scale width",
+              "grisu-claim-power": "fractional power update",
+              "grisu-claim-threshold": "fractional threshold update",
+              "grisu-claim-suffix": "fractional suffix update",
+          }
+          if mode == "grisu-safety":
+              names = [item["name"] for item in properties if item["class"] not in {"cover", "reachability_check"}]
+          else:
+              names = [item["name"] for item in properties if item["class"] == "assertion" and labels[mode] in item["description"]]
+              assert len(names) == 1, names
           assert names
           print("\n".join(names))
           PY
