@@ -235,7 +235,9 @@ pub fn format_shortest<'a>(
             && mant.kani_size() <= proof_max_limbs
             && minus.kani_size() <= proof_max_limbs
             && plus.kani_size() <= proof_max_limbs
-            && mant < proof_scale10 && minus < proof_scale10 && plus < proof_scale10
+            && mant.kani_cmp_model(&proof_scale10) == Ordering::Less
+            && minus.kani_cmp_model(&proof_scale10) == Ordering::Less
+            && plus.kani_cmp_model(&proof_scale10) == Ordering::Less
             && (i == 0 || proof_scale10.cmp(mant.clone().add(&plus)) >= rounding)
             && scale < shortest_remaining_margin(&minus, &plus, i)
             && initialized_digit_prefix(buf, i)
@@ -323,6 +325,7 @@ fn fill_zeroes(buf: &mut [MaybeUninit<u8>]) {
 }
 
 #[cfg(kani)]
+#[inline(always)]
 fn shortest_remaining_margin(minus: &Big, plus: &Big, digits: usize) -> Big {
     // Each digit multiplies both margins by ten. Their combined width must
     // exceed the scale by the seventeenth digit, forcing a rounding decision.
@@ -366,7 +369,7 @@ fn generate_exact_digits(
             && len <= dragon_verify::PROOF_BUFLEN
             && mant.kani_size() <= proof_max_limbs
             && mant.kani_valid_storage()
-            && *mant < proof_scale10
+            && mant.kani_cmp_model(&proof_scale10) == Ordering::Less
             && initialized_digit_prefix(buf, kani::index)
     ))]
     for i in 0..len {
@@ -403,6 +406,7 @@ fn generate_exact_digits(
 }
 
 #[cfg(kani)]
+#[inline(always)]
 fn initialized_digit_prefix(buf: &[MaybeUninit<u8>], len: usize) -> bool {
     // Each byte keeps its own initialization guard. Combine the independent
     // checks eagerly to avoid nested short-circuit paths during instrumentation.

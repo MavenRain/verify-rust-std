@@ -480,6 +480,7 @@ impl Big {
         value
     }
 
+    #[inline(always)]
     pub(crate) fn kani_size(&self) -> usize {
         self.size
     }
@@ -488,6 +489,7 @@ impl Big {
         &mut self.base
     }
 
+    #[inline(always)]
     pub(crate) fn kani_valid_storage(&self) -> bool {
         let size = kani_loop_size(self.size);
         // Constant indices avoid unfolding a symbolic slice iterator in every
@@ -503,6 +505,7 @@ impl Big {
 
     // The equivalence proof in dragon_verify checks these constant-index
     // models for every in-bounds storage size and arbitrary limb contents.
+    #[inline(always)]
     pub(crate) fn kani_cmp_model(&self, other: &Self) -> crate::cmp::Ordering {
         use crate::cmp::Ordering::{Equal, Greater, Less};
 
