@@ -232,8 +232,8 @@ jobs:
       RAYON_NUM_THREADS: 1
       KANI_JOBS: 1
       KANI_PATCHED_CBMC: 'true'
-      KANI_OBJECT_BITS: ${{ (startsWith(matrix.group, 'dragon-mul-digits-equivalence') || startsWith(matrix.group, 'dragon-mul-digits-native-')) && '16' || (matrix.group == 'dragon-loop-frame' || startsWith(matrix.group, 'grisu-shortest-single-') || startsWith(matrix.group, 'grisu-shortest-smt-')) && '10' || (startsWith(matrix.group, 'dragon-exact-single-') || startsWith(matrix.group, 'dragon-shortest-single-') || startsWith(matrix.group, 'dragon-exact-exponent-')) && '12' || (matrix.group == 'dragon-loop-instrumentation' || matrix.group == 'dragon-shortest-fixed-exponent') && '11' || (inputs.suite == 'generators' || inputs.suite == 'grisu-generators' || inputs.suite == 'exact-digits') && '14' || '12' }}
-      PROOF_TIMEOUT: ${{ (matrix.group == 'dragon-loop-frame' || startsWith(matrix.group, 'grisu-invariant-encoding-powers') || matrix.group == 'dragon-mul-digits-equivalence') && '180s' || startsWith(matrix.group, 'grisu-shortest-single-') && '7200s' || inputs.suite == 'generators' && '3600s' || (inputs.suite == 'grisu-generators' || inputs.suite == 'exact-digits') && '1800s' || '420s' }}
+      KANI_OBJECT_BITS: ${{ (startsWith(matrix.group, 'dragon-mul-digits-equivalence') || startsWith(matrix.group, 'dragon-mul-digits-native-')) && '16' || (matrix.group == 'dragon-loop-frame' || matrix.group == 'grisu-shortest-step-profile' || startsWith(matrix.group, 'grisu-shortest-single-') || startsWith(matrix.group, 'grisu-shortest-smt-')) && '10' || (startsWith(matrix.group, 'dragon-exact-single-') || startsWith(matrix.group, 'dragon-shortest-single-') || startsWith(matrix.group, 'dragon-exact-exponent-')) && '12' || (matrix.group == 'dragon-loop-instrumentation' || matrix.group == 'dragon-shortest-fixed-exponent') && '11' || (inputs.suite == 'generators' || inputs.suite == 'grisu-generators' || inputs.suite == 'exact-digits') && '14' || '12' }}
+      PROOF_TIMEOUT: ${{ (matrix.group == 'dragon-loop-frame' || matrix.group == 'grisu-shortest-step-profile' || startsWith(matrix.group, 'grisu-invariant-encoding-powers') || matrix.group == 'dragon-mul-digits-equivalence') && '180s' || startsWith(matrix.group, 'grisu-shortest-single-') && '7200s' || inputs.suite == 'generators' && '3600s' || (inputs.suite == 'grisu-generators' || inputs.suite == 'exact-digits') && '1800s' || '420s' }}
       KANI_SYMEX_CACHE_DEREFERENCES: 'true'
       KANI_ARRAY_FIELD_SENSITIVITY: 'true'
       HARNESS_GROUP: ${{ matrix.group }}
@@ -296,6 +296,8 @@ jobs:
             echo num::imp::flt2dec::strategy::grisu::grisu_verify::f32_00::check_format_shortest_opt > harnesses.txt
           elif [[ "$HARNESS_GROUP" == grisu-invariant-encoding ]]; then
             echo num::imp::flt2dec::strategy::grisu::grisu_verify::check_fractional_invariant_encoding > harnesses.txt
+          elif [[ "$HARNESS_GROUP" == grisu-shortest-step-profile ]]; then
+            echo num::imp::flt2dec::strategy::grisu::grisu_verify::f32_00::check_format_shortest_opt > harnesses.txt
           elif [[ "$HARNESS_GROUP" == grisu-threshold-step-smt ]]; then
             echo num::imp::flt2dec::strategy::grisu::grisu_verify::check_advance_fraction_threshold > harnesses.txt
           elif [[ "$HARNESS_GROUP" == grisu-invariant-encoding-powers || "$HARNESS_GROUP" == grisu-invariant-encoding-powers-smt ]]; then

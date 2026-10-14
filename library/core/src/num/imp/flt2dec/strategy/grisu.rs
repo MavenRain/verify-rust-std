@@ -468,6 +468,27 @@ fn generate_shortest<'a>(d: &Decoded, buf: &'a mut [MaybeUninit<u8>]) -> Shortes
             };
         }
 
+        #[cfg(kani)]
+        {
+            crate::kani::internal::check(i <= 16, "fractional digit capacity");
+            crate::kani::internal::check(ulp < 1u64 << 50, "fractional scale width");
+            crate::kani::internal::check(
+                ulp == grisu_verify::proof_power10(i - max_kappa as usize - 1),
+                "fractional power update",
+            );
+            crate::kani::internal::check(
+                threshold as u128
+                    == grisu_verify::proof_threshold(delta1frac, i - max_kappa as usize - 1),
+                "fractional threshold update",
+            );
+            crate::kani::internal::check(
+                2 * ((plus.f - v.f) as u128) < delta1 as u128
+                    || remainder.wrapping_sub(threshold)
+                        << ((64 - (e - 16 + (i - max_kappa as usize - 1))) as u8)
+                        != 0,
+                "fractional suffix update",
+            );
+        }
         // restore invariants
     }
 }
