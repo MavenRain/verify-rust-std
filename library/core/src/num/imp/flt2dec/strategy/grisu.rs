@@ -952,9 +952,10 @@ pub mod grisu_verify {
     const _: () = assert!(PROOF_BUFLEN <= u8::MAX as usize);
 
     pub(super) fn initialized_digits(buf: &[MaybeUninit<u8>], len: usize) -> bool {
+        // Keep each guarded byte check independent to avoid deep conditionals.
         macro_rules! check_digit {
             ($($index:literal),+ $(,)?) => {
-                true $(&& (buf.len() <= $index || len <= $index || (
+                true $(& (buf.len() <= $index || len <= $index || (
                     kani::mem::can_dereference(crate::ptr::addr_of!(buf[$index]) as *const u8)
                         && unsafe { buf[$index].assume_init() >= b'0' && buf[$index].assume_init() <= b'9' }
                 )))+
