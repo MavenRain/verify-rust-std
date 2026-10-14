@@ -558,6 +558,22 @@ pub mod dragon_verify {
     pub(super) const PROOF_BUFLEN: usize = 32;
     const _: () = assert!(PROOF_BUFLEN <= u8::MAX as usize);
 
+    #[kani::proof]
+    #[kani::unwind(41)]
+    #[kani::solver(kissat)]
+    fn check_exact_digit_loop_frame() {
+        let mut mant = Big::from_u64(5);
+        let scale = Big::from_small(1);
+        let scale2 = Big::from_small(2);
+        let scale4 = Big::from_small(4);
+        let scale8 = Big::from_small(8);
+        let mut buf = [MaybeUninit::uninit(); 1];
+        let _ = generate_exact_digits(&mut mant, &scale, &scale2, &scale4, &scale8, &mut buf);
+        let digit = unsafe { buf[0].assume_init() };
+        assert!(digit >= b'0' && digit <= b'9');
+        kani::cover(digit == b'5', "the counter frame permits a generated digit");
+    }
+
     // The models assert the size bounds checked by the independent equivalence
     // proof, then compute exact results with constant limb indices.
     fn stub_cmp(left: &Big, right: &Big) -> Ordering {

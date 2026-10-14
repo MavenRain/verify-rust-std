@@ -184,6 +184,8 @@ jobs:
             echo num::imp::flt2dec::strategy::dragon::dragon_verify::check_digit_remainder_contract > harnesses.txt
           elif [[ "$HARNESS_GROUP" == dragon-loop-instrumentation ]]; then
             echo num::imp::flt2dec::strategy::dragon::dragon_verify::f64_exp_1023::check_format_exact > harnesses.txt
+          elif [[ "$HARNESS_GROUP" == dragon-loop-frame ]]; then
+            echo num::imp::flt2dec::strategy::dragon::dragon_verify::check_exact_digit_loop_frame > harnesses.txt
           elif [[ "$HARNESS_GROUP" == dragon-digit-one-limb ]]; then
             echo num::imp::flt2dec::strategy::dragon::dragon_verify::check_digit_remainder_one_limb > harnesses.txt
           elif [[ "$HARNESS_GROUP" == dragon-digit-full-limbs ]]; then
