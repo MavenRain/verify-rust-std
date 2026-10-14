@@ -215,9 +215,31 @@ pub fn format_shortest<'a>(
     let mut scale8 = scale.clone();
     scale8.mul_pow2(3);
 
+    #[cfg(kani)]
+    let mut down = false;
+    #[cfg(not(kani))]
     let mut down;
+    #[cfg(kani)]
+    let mut up = false;
+    #[cfg(not(kani))]
     let mut up;
     let mut i = 0;
+    #[cfg(kani)]
+    let proof_scale10 = scale.clone().mul_small(10).clone();
+    #[cfg(kani)]
+    let proof_max_limbs = crate::cmp::max(mant.kani_size(), proof_scale10.kani_size());
+    #[cfg_attr(kani, kani::loop_modifies(i, mant, minus, plus, down, up, &buf[..]))]
+    #[cfg_attr(kani, kani::loop_invariant(
+        i < MAX_SIG_DIGITS
+            && mant.kani_valid_storage() && minus.kani_valid_storage() && plus.kani_valid_storage()
+            && mant.kani_size() <= proof_max_limbs
+            && minus.kani_size() <= proof_max_limbs
+            && plus.kani_size() <= proof_max_limbs
+            && mant < proof_scale10 && minus < proof_scale10 && plus < proof_scale10
+            && (i == 0 || proof_scale10.cmp(mant.clone().add(&plus)) >= rounding)
+            && scale < shortest_remaining_margin(&minus, &plus, i)
+            && initialized_digit_prefix(buf, i)
+    ))]
     loop {
         // invariants, where `d[0..n-1]` are digits generated so far:
         // - `v = mant / scale * 10^(k-n-1) + d[0..n-1] * 10^(k-n)`
@@ -298,6 +320,31 @@ pub fn format_shortest<'a>(
 
 fn fill_zeroes(buf: &mut [MaybeUninit<u8>]) {
     buf.fill(MaybeUninit::new(b'0'));
+}
+
+#[cfg(kani)]
+fn shortest_remaining_margin(minus: &Big, plus: &Big, digits: usize) -> Big {
+    // Each digit multiplies both margins by ten. Their combined width must
+    // exceed the scale by the seventeenth digit, forcing a rounding decision.
+    let remaining = MAX_SIG_DIGITS - 1 - digits;
+    let power = |n| match n {
+        0 => 1,
+        1 => 10,
+        2 => 100,
+        3 => 1_000,
+        4 => 10_000,
+        5 => 100_000,
+        6 => 1_000_000,
+        7 => 10_000_000,
+        8 => 100_000_000,
+        _ => unreachable!(),
+    };
+    let mut margin = minus.clone();
+    margin.add(plus);
+    // Each factor fits a Digit on both 32-bit and 64-bit targets.
+    margin.mul_small(power(remaining / 2));
+    margin.mul_small(power(remaining - remaining / 2));
+    margin
 }
 
 fn generate_exact_digits(
@@ -2176,7 +2223,8 @@ pub mod dragon_verify {
     // Only the two unit-exponent diagnostics use these checked count encodings.
     // A count outside the mask fails an assertion, without excluding any input.
     fn unit_shortest_limb_count(size: usize) -> usize {
-        LimbCountMask(if Digit::BITS == 64 { 1 } else { 3 }).check(size)
+        // The invariant's remaining margin can use an extra carry limb.
+        LimbCountMask(if Digit::BITS == 64 { 3 } else { 7 }).check(size)
     }
 
     fn unit_exact_limb_count(size: usize) -> usize {
