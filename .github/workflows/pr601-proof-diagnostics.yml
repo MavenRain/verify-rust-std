@@ -66,7 +66,7 @@ jobs:
   proofs:
     if: inputs.suite != 'properties' && inputs.suite != 'arithmetic-properties' && inputs.suite != 'runtime'
     runs-on: ${{ inputs.runner || 'ubuntu-latest' }}
-    timeout-minutes: 90
+    timeout-minutes: ${{ inputs.suite == 'generators' && 180 || 90 }}
     strategy:
       fail-fast: false
       matrix:
