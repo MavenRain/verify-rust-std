@@ -299,6 +299,8 @@ jobs:
             echo num::imp::flt2dec::strategy::dragon::dragon_verify::f64_exp_1023::check_format_exact > harnesses.txt
           elif [[ "$HARNESS_GROUP" == dragon-loop-frame ]]; then
             echo num::imp::flt2dec::strategy::dragon::dragon_verify::check_exact_digit_loop_frame > harnesses.txt
+          elif [[ "$HARNESS_GROUP" =~ ^dragon-scaled-sum-comparison-(zero|max)$ ]]; then
+            printf 'num::imp::flt2dec::strategy::dragon::dragon_verify::check_scaled_sum_comparison_%s\n' "${BASH_REMATCH[1]}" > harnesses.txt
           elif [[ "$HARNESS_GROUP" == dragon-scaled-sum-comparison ]]; then
             echo num::imp::flt2dec::strategy::dragon::dragon_verify::check_scaled_sum_comparison > harnesses.txt
           elif [[ "$HARNESS_GROUP" == dragon-invariant-predicates ]]; then

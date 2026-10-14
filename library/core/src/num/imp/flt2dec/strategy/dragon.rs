@@ -650,6 +650,26 @@ pub mod dragon_verify {
     #[kani::unwind(41)]
     #[kani::solver(kissat)]
     fn check_scaled_sum_comparison() {
+        let digits = usize::from(kani::any::<u8>() & 0x1f);
+        kani::assume(digits < MAX_SIG_DIGITS);
+        check_scaled_sum_comparison_for_digits(digits);
+    }
+
+    #[kani::proof]
+    #[kani::unwind(41)]
+    #[kani::solver(kissat)]
+    fn check_scaled_sum_comparison_zero() {
+        check_scaled_sum_comparison_for_digits(0);
+    }
+
+    #[kani::proof]
+    #[kani::unwind(41)]
+    #[kani::solver(kissat)]
+    fn check_scaled_sum_comparison_max() {
+        check_scaled_sum_comparison_for_digits(16);
+    }
+
+    fn check_scaled_sum_comparison_for_digits(digits: usize) {
         let left_size = usize::from(kani::any::<u8>() & 0x3f);
         let right_size = usize::from(kani::any::<u8>() & 0x3f);
         let scale_size = usize::from(kani::any::<u8>() & 0x3f);
@@ -658,8 +678,6 @@ pub mod dragon_verify {
         let left = Big::kani_valid_with_size(left_size);
         let right = Big::kani_valid_with_size(right_size);
         let scale = Big::kani_valid_with_size(scale_size);
-        let digits = usize::from(kani::any::<u8>() & 0x1f);
-        kani::assume(digits < MAX_SIG_DIGITS);
         let reference = shortest_remaining_margin(&left, &right, MAX_SIG_DIGITS - 1 - digits);
         let expected = match scale.cmp(&reference) {
             Ordering::Less => KaniInvariantOrdering::Less,
