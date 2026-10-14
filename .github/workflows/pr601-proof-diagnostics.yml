@@ -286,7 +286,7 @@ jobs:
           ) &
           sampler_pid=$!
           trap 'kill "$sampler_pid" 2>/dev/null || true' EXIT
-          if [[ "$HARNESS_GROUP" == scaling-profile ]]; then
+          if [[ "$HARNESS_GROUP" == scaling-profile || "$HARNESS_GROUP" == dragon-loop-frame || "$HARNESS_GROUP" == grisu-shortest-single-f32_00 ]]; then
             (
               for _attempt in {1..60}; do
                 cbmc_pid=$(pgrep -nx cbmc || true)
@@ -335,6 +335,7 @@ jobs:
             target/kani_verify_std/target/**/out/*dragon*f64_exp_1023*check_format_exact.out
             target/kani_verify_std/target/**/out/*check_exact_digit_loop_frame.out
             target/kani_verify_std/target/**/out/*grisu*f64_31*check_format_shortest_opt.out
+            target/kani_verify_std/target/**/out/*grisu*f32_00*check_format_shortest_opt.out
           if-no-files-found: ignore
 
   scaling-properties:
