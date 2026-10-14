@@ -74,7 +74,7 @@ jobs:
           models=(diagnostic-input/**/*.out)
           [[ ${#models[@]} == 1 ]]
           ulimit -v 4194304
-          cbmc_build/bin/goto-instrument --reachability-slice --full-slice \
+          cbmc_build/bin/goto-instrument --reachability-slice \
             --property num::imp::flt2dec::strategy::dragon::generate_exact_digits.assigns.2 \
             "${models[0]}" diagnostic-counter.out
           set -o pipefail
