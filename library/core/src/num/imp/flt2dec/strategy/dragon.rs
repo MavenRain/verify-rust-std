@@ -1881,6 +1881,38 @@ pub mod dragon_verify {
         kani::cover(digit == 9, "digit subtraction includes nine");
     }
 
+    // Diagnostic storage shapes isolate the cost of symbolic limb counts.
+    // These subsets do not establish the unrestricted contract.
+    macro_rules! check_digit_remainder_shape {
+        ($name:ident, $size:expr) => {
+            #[kani::proof_for_contract(digit_remainder_contract)]
+            #[kani::stub(<Big as crate::cmp::Ord>::cmp, stub_cmp)]
+            #[kani::stub(Big::is_zero, stub_is_zero)]
+            #[kani::stub(Big::sub, Big::kani_sub_model)]
+            #[kani::stub(Big::mul_small, Big::kani_mul_small_model)]
+            #[cfg_attr(
+                target_pointer_width = "64",
+                kani::stub(u64::carrying_mul, carrying_mul_model)
+            )]
+            #[cfg_attr(
+                any(target_pointer_width = "16", target_pointer_width = "32"),
+                kani::stub(u32::carrying_mul, carrying_mul_model)
+            )]
+            #[kani::unwind(41)]
+            #[kani::solver(kissat)]
+            fn $name() {
+                let value = Big::kani_any_valid();
+                let scale = Big::kani_any_valid();
+                kani::assume(value.kani_size() == $size && scale.kani_size() == $size);
+                let (_, digit) = digit_remainder_contract(value, scale);
+                kani::cover(digit == 0, "fixed storage includes zero digits");
+                kani::cover(digit == 9, "fixed storage includes nine digits");
+            }
+        };
+    }
+    check_digit_remainder_shape!(check_digit_remainder_one_limb, 1);
+    check_digit_remainder_shape!(check_digit_remainder_full_limbs, KANI_LIMBS - 1);
+
     // Verify the limb loop separately from the outer power-of-ten loop.
     // Only limbs are writable, so stubs retain the caller's size expression.
     #[kani::requires(divisor > 0 && value.kani_valid_storage())]
