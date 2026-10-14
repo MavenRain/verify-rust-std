@@ -312,6 +312,10 @@ jobs:
             echo num::imp::flt2dec::strategy::dragon::dragon_verify::check_exact_digit_loop_frame > harnesses.txt
           elif [[ "$HARNESS_GROUP" =~ ^dragon-scaled-sum-comparison-(zero|max)$ ]]; then
             printf 'num::imp::flt2dec::strategy::dragon::dragon_verify::check_scaled_sum_comparison_%s\n' "${BASH_REMATCH[1]}" > harnesses.txt
+          elif [[ "$HARNESS_GROUP" =~ ^dragon-scaled-sum-comparison-smt-(zero|max)$ ]]; then
+            printf 'num::imp::flt2dec::strategy::dragon::dragon_verify::check_scaled_sum_comparison_%s\n' "${BASH_REMATCH[1]}" > harnesses.txt
+          elif [[ "$HARNESS_GROUP" == dragon-scaled-sum-comparison-smt ]]; then
+            echo num::imp::flt2dec::strategy::dragon::dragon_verify::check_scaled_sum_comparison > harnesses.txt
           elif [[ "$HARNESS_GROUP" == dragon-scaled-sum-comparison ]]; then
             echo num::imp::flt2dec::strategy::dragon::dragon_verify::check_scaled_sum_comparison > harnesses.txt
           elif [[ "$HARNESS_GROUP" == dragon-invariant-predicates ]]; then
@@ -361,14 +365,18 @@ jobs:
             python3 -I scripts/kani-std-analysis/flt2dec_harnesses.py --group "$HARNESS_GROUP" > harnesses.txt
           fi
       - name: Install arithmetic diagnostic solver
-        if: startsWith(matrix.group, 'arithmetic-smt-') || startsWith(matrix.group, 'grisu-shortest-smt-')
+        if: startsWith(matrix.group, 'arithmetic-smt-') || startsWith(matrix.group, 'grisu-shortest-smt-') || startsWith(matrix.group, 'dragon-scaled-sum-comparison-smt')
         run: |
           bash scripts/setup-cvc5.sh "$PWD/cvc5_build"
           KANI_CVC5_BINARY="$PWD/cvc5_build/bin/cvc5" bash scripts/kani-std-analysis/test_cvc5_flat_smt.sh
           cat > cvc5-wrapper.sh <<'SH'
           #!/usr/bin/env bash
           set -euo pipefail
-          exec ./cvc5_build/bin/cvc5 --lang=smt2 --solve-bv-as-int="${HARNESS_GROUP##*-}" "$@"
+          solver_mode=${HARNESS_GROUP##*-}
+          if [[ "$HARNESS_GROUP" == dragon-scaled-sum-comparison-smt* ]]; then
+            solver_mode=sum
+          fi
+          exec ./cvc5_build/bin/cvc5 --lang=smt2 --solve-bv-as-int="$solver_mode" "$@"
           SH
           chmod +x cvc5-wrapper.sh
       - name: Verify selected proof cases
@@ -398,7 +406,7 @@ jobs:
           while IFS= read -r harness; do
             harness_args+=(--harness "$harness")
           done < harnesses.txt
-          if [[ "$HARNESS_GROUP" == arithmetic-smt-* || "$HARNESS_GROUP" == grisu-shortest-smt-* ]]; then
+          if [[ "$HARNESS_GROUP" == arithmetic-smt-* || "$HARNESS_GROUP" == grisu-shortest-smt-* || "$HARNESS_GROUP" == dragon-scaled-sum-comparison-smt* ]]; then
             export KANI_DIAGNOSTIC_SMT2_SOLVER="$PWD/cvc5-wrapper.sh"
           fi
           set -o pipefail
@@ -432,6 +440,7 @@ jobs:
             target/kani_verify_std/target/**/out/*dragon*f64_exp_1023*check_format_exact.out
             target/kani_verify_std/target/**/out/*dragon*f64_exp_1023*check_format_shortest.out
             target/kani_verify_std/target/**/out/*dragon*f32_00*check_format_exact.out
+            target/kani_verify_std/target/**/out/*check_scaled_sum_comparison*.out
             target/kani_verify_std/target/**/out/*check_exact_digit_loop_frame.out
             target/kani_verify_std/target/**/out/*grisu*f64_31*check_format_shortest_opt.out
             target/kani_verify_std/target/**/out/*grisu*f32_00*check_format_shortest_opt.out
