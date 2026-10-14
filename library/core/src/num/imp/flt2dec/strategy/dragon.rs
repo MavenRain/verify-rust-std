@@ -2557,6 +2557,8 @@ pub mod dragon_verify {
     check_exact_fixed_digits!(check_format_exact_32_digits, 32);
 
     for_each_finite_partition!(check_partition);
+    check_partition!(f64_exp_1, arbitrary_finite_f64_exponent, 1, false);
+    check_partition!(f64_exp_2046, arbitrary_finite_f64_exponent, 2046, false);
     // These inputs need fewer bigint limbs. Keep enough iterations for the
     // digit and rounding loops; unwinding assertions check every loop bound.
     check_partition!(
