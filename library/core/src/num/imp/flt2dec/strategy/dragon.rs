@@ -225,12 +225,16 @@ pub fn format_shortest<'a>(
     let mut up = false;
     #[cfg(not(kani))]
     let mut up;
+    #[cfg(kani)]
+    let mut d = 0;
+    #[cfg(not(kani))]
+    let mut d;
     let mut i = 0;
     #[cfg(kani)]
     let proof_scale10 = scale.clone().mul_small(10).clone();
     #[cfg(kani)]
     let proof_max_limbs = crate::cmp::max(mant.kani_size(), proof_scale10.kani_size());
-    #[cfg_attr(kani, kani::loop_modifies(&i, &mant, &minus, &plus, &down, &up, &buf[..]))]
+    #[cfg_attr(kani, kani::loop_modifies(&i, &d, &mant, &minus, &plus, &down, &up, &buf[..]))]
     #[cfg_attr(kani, kani::loop_invariant(
         i < MAX_SIG_DIGITS
             && mant.kani_invariant_valid_storage()
@@ -263,7 +267,7 @@ pub fn format_shortest<'a>(
         // where `d[i..j]` is a shorthand for `d[i] * 10^(j-i) + ... + d[j-1] * 10 + d[j]`.
 
         // generate one digit: `d[n] = floor(mant / scale) < 10`.
-        let (d, _) = div_rem_upto_16(&mut mant, &scale, &scale2, &scale4, &scale8);
+        (d, _) = div_rem_upto_16(&mut mant, &scale, &scale2, &scale4, &scale8);
         debug_assert!(d < 10);
         buf[i] = MaybeUninit::new(b'0' + d);
         i += 1;
