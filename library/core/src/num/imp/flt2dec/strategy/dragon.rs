@@ -8,6 +8,8 @@ use flt2dec::estimator::estimate_scaling_factor;
 use flt2dec::{Decoded, MAX_SIG_DIGITS, round_up};
 
 use crate::cmp::Ordering;
+#[cfg(kani)]
+use crate::kani;
 use crate::mem::MaybeUninit;
 use crate::num::imp::bignum::{Big, Digit};
 use crate::num::imp::flt2dec;
@@ -298,6 +300,79 @@ fn fill_zeroes(buf: &mut [MaybeUninit<u8>]) {
     buf.fill(MaybeUninit::new(b'0'));
 }
 
+fn generate_exact_digits(
+    mant: &mut Big,
+    scale: &Big,
+    scale2: &Big,
+    scale4: &Big,
+    scale8: &Big,
+    buf: &mut [MaybeUninit<u8>],
+) -> bool {
+    let len = buf.len();
+    #[cfg(kani)]
+    let proof_scale10 = scale.clone().mul_small(10).clone();
+    #[cfg(kani)]
+    let proof_max_limbs = crate::cmp::max(mant.kani_size(), proof_scale10.kani_size());
+    #[cfg_attr(kani, kani::loop_modifies(&*mant, &buf[..]))]
+    #[cfg_attr(kani, kani::loop_invariant(
+        kani::index <= len
+            && len <= dragon_verify::PROOF_BUFLEN
+            && mant.kani_size() <= proof_max_limbs
+            && mant.kani_valid_storage()
+            && *mant < proof_scale10
+            && initialized_digit_prefix(buf, kani::index)
+    ))]
+    for i in 0..len {
+        if mant.is_zero() {
+            // following digits are all zeroes, we stop here
+            // do *not* try to perform rounding! rather, fill remaining digits.
+            fill_zeroes(&mut buf[i..len]);
+            return true;
+        }
+
+        let mut d = 0;
+        if *mant >= *scale8 {
+            mant.sub(scale8);
+            d += 8;
+        }
+        if *mant >= *scale4 {
+            mant.sub(scale4);
+            d += 4;
+        }
+        if *mant >= *scale2 {
+            mant.sub(scale2);
+            d += 2;
+        }
+        if *mant >= *scale {
+            mant.sub(scale);
+            d += 1;
+        }
+        debug_assert!(*mant < *scale);
+        debug_assert!(d < 10);
+        buf[i] = MaybeUninit::new(b'0' + d);
+        mant.mul_small(10);
+    }
+    false
+}
+
+#[cfg(kani)]
+fn initialized_digit_prefix(buf: &[MaybeUninit<u8>], len: usize) -> bool {
+    macro_rules! check_digit {
+        ($($index:literal),+ $(,)?) => {
+            true $(&& (len <= $index || (
+                kani::mem::can_dereference(unsafe { buf.as_ptr().add($index).cast::<u8>() })
+                    && unsafe { buf[$index].assume_init() >= b'0' && buf[$index].assume_init() <= b'9' }
+            )))+
+        };
+    }
+    len <= buf.len()
+        && len <= dragon_verify::PROOF_BUFLEN
+        && check_digit!(
+            0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23,
+            24, 25, 26, 27, 28, 29, 30, 31
+        )
+}
+
 /// The exact and fixed mode implementation for Dragon.
 pub fn format_exact<'a>(
     d: &Decoded,
@@ -355,7 +430,7 @@ pub fn format_exact<'a>(
         buf.len()
     };
 
-    if len > 0 {
+    let exhausted = if len > 0 {
         // cache `(2, 4, 8) * scale` for digit generation.
         // (this can be expensive, so do not calculate them when the buffer is empty.)
         let mut scale2 = scale.clone();
@@ -365,65 +440,42 @@ pub fn format_exact<'a>(
         let mut scale8 = scale.clone();
         scale8.mul_pow2(3);
 
-        for i in 0..len {
-            if mant.is_zero() {
-                // following digits are all zeroes, we stop here
-                // do *not* try to perform rounding! rather, fill remaining digits.
-                fill_zeroes(&mut buf[i..len]);
-                // SAFETY: we initialized that memory above.
-                return (unsafe { buf[..len].assume_init_ref() }, k);
-            }
+        generate_exact_digits(&mut mant, &scale, &scale2, &scale4, &scale8, &mut buf[..len])
+    } else {
+        false
+    };
 
-            let mut d = 0;
-            if mant >= scale8 {
-                mant.sub(&scale8);
-                d += 8;
+    if exhausted {
+        // SAFETY: digit generation initialized the requested prefix.
+        (unsafe { buf[..len].assume_init_ref() }, k)
+    } else {
+        // rounding up if we stop in the middle of digits
+        // if the following digits are exactly 5000..., check the prior digit and try to
+        // round to even (i.e., avoid rounding up when the prior digit is even).
+        let order = mant.cmp(scale.mul_small(5));
+        if order == Ordering::Greater
+            || (order == Ordering::Equal
+                // SAFETY: `buf[len-1]` is initialized.
+                && len > 0 && unsafe { buf[len - 1].assume_init() } & 1 == 1)
+        {
+            // if rounding up changes the length, the exponent should also change.
+            // but we've been requested a fixed number of digits, so do not alter the buffer...
+            // SAFETY: we initialized that memory above.
+            if let Some(c) = round_up(unsafe { buf[..len].assume_init_mut() }) {
+                // ...unless we've been requested the fixed precision instead.
+                // we also need to check that, if the original buffer was empty,
+                // the additional digit can only be added when `k == limit` (edge case).
+                k += 1;
+                if k > limit && len < buf.len() {
+                    buf[len] = MaybeUninit::new(c);
+                    len += 1;
+                }
             }
-            if mant >= scale4 {
-                mant.sub(&scale4);
-                d += 4;
-            }
-            if mant >= scale2 {
-                mant.sub(&scale2);
-                d += 2;
-            }
-            if mant >= scale {
-                mant.sub(&scale);
-                d += 1;
-            }
-            debug_assert!(mant < scale);
-            debug_assert!(d < 10);
-            buf[i] = MaybeUninit::new(b'0' + d);
-            mant.mul_small(10);
         }
-    }
 
-    // rounding up if we stop in the middle of digits
-    // if the following digits are exactly 5000..., check the prior digit and try to
-    // round to even (i.e., avoid rounding up when the prior digit is even).
-    let order = mant.cmp(scale.mul_small(5));
-    if order == Ordering::Greater
-        || (order == Ordering::Equal
-            // SAFETY: `buf[len-1]` is initialized.
-            && len > 0 && unsafe { buf[len - 1].assume_init() } & 1 == 1)
-    {
-        // if rounding up changes the length, the exponent should also change.
-        // but we've been requested a fixed number of digits, so do not alter the buffer...
         // SAFETY: we initialized that memory above.
-        if let Some(c) = round_up(unsafe { buf[..len].assume_init_mut() }) {
-            // ...unless we've been requested the fixed precision instead.
-            // we also need to check that, if the original buffer was empty,
-            // the additional digit can only be added when `k == limit` (edge case).
-            k += 1;
-            if k > limit && len < buf.len() {
-                buf[len] = MaybeUninit::new(c);
-                len += 1;
-            }
-        }
+        (unsafe { buf[..len].assume_init_ref() }, k)
     }
-
-    // SAFETY: we initialized that memory above.
-    (unsafe { buf[..len].assume_init_ref() }, k)
 }
 
 #[cfg(kani)]
