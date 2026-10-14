@@ -2305,8 +2305,9 @@ pub mod dragon_verify {
     // Only the two unit-exponent diagnostics use these checked count encodings.
     // A count outside the mask fails an assertion, without excluding any input.
     fn unit_shortest_limb_count(size: usize) -> usize {
-        // The invariant's remaining margin can use an extra carry limb.
-        LimbCountMask(if Digit::BITS == 64 { 3 } else { 7 }).check(size)
+        // Wide invariant comparisons use primitive arithmetic, so the unit
+        // exponent's Big operands stay within one limb on 64-bit targets.
+        LimbCountMask(if Digit::BITS == 64 { 1 } else { 7 }).check(size)
     }
 
     fn unit_exact_limb_count(size: usize) -> usize {
