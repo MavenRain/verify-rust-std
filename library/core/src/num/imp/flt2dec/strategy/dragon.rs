@@ -414,7 +414,10 @@ fn initialized_digit_prefix(buf: &[MaybeUninit<u8>], len: usize) -> bool {
         ($($index:literal),+ $(,)?) => {
             true $(& (buf.len() <= $index || len <= $index || (
                 kani::mem::can_dereference(crate::ptr::addr_of!(buf[$index]) as *const u8)
-                    && unsafe { buf[$index].assume_init() >= b'0' && buf[$index].assume_init() <= b'9' }
+                    && unsafe {
+                        let digit = *(crate::ptr::addr_of!(buf[$index]) as *const u8);
+                        digit >= b'0' && digit <= b'9'
+                    }
             )))+
         };
     }

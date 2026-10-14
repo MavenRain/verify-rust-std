@@ -311,7 +311,7 @@ jobs:
           if [[ "$HARNESS_GROUP" == grisu-shortest-trace-31 ]]; then
             trace_args=(--export-json proof-results.json --concrete-playback print)
           fi
-          if [[ "$HARNESS_GROUP" == dragon-loop-instrumentation ]]; then
+          if [[ "$HARNESS_GROUP" == dragon-loop-instrumentation || "$HARNESS_GROUP" == dragon-loop-frame ]]; then
             # Keep the runner alive to upload the model when instrumentation grows.
             ulimit -v 4194304
           fi
