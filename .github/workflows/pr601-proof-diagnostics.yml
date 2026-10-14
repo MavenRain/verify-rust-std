@@ -375,9 +375,9 @@ jobs:
           if [[ "$HARNESS_GROUP" == grisu-shortest-trace-31 ]]; then
             trace_args=(--export-json proof-results.json --concrete-playback print)
           fi
-          if [[ "$HARNESS_GROUP" == dragon-loop-instrumentation || "$HARNESS_GROUP" == dragon-shortest-fixed-exponent || "$HARNESS_GROUP" == dragon-exact-single-* || "$HARNESS_GROUP" == grisu-shortest-smt-* ]]; then
+          if [[ "$RUNNER_OS" == Linux && ( "$HARNESS_GROUP" == dragon-loop-instrumentation || "$HARNESS_GROUP" == dragon-shortest-fixed-exponent || "$HARNESS_GROUP" == dragon-exact-single-* || "$HARNESS_GROUP" == grisu-shortest-smt-* ) ]]; then
             ulimit -v 8388608
-          elif [[ "$HARNESS_GROUP" == dragon-loop-frame ]]; then
+          elif [[ "$RUNNER_OS" == Linux && "$HARNESS_GROUP" == dragon-loop-frame ]]; then
             # Keep the runner alive to upload the model when instrumentation grows.
             ulimit -v 4194304
           fi
