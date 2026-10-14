@@ -85,6 +85,12 @@ jobs:
           cp "${models[0]}" diagnostic-counter.out
           extra_args=()
           object_bits=14
+          unwind=41
+          if [[ "$CBMC_MODE" == grisu-* ]]; then
+            object_bits=10
+            unwind=19
+            extra_args+=(--symex-cache-dereferences)
+          fi
           case "$CBMC_MODE" in
             baseline) ;;
             no-simplify) extra_args+=(--no-simplify) ;;
@@ -93,6 +99,23 @@ jobs:
             arrays-uf) extra_args+=(--arrays-uf-always) ;;
             objects-10) object_bits=10 ;;
             objects-12) object_bits=12 ;;
+            grisu-fraction-base) extra_args+=(--property num::imp::flt2dec::strategy::grisu::generate_shortest.loop_invariant_base.1) ;;
+            grisu-fraction-step) extra_args+=(--property num::imp::flt2dec::strategy::grisu::generate_shortest.loop_invariant_step.1) ;;
+            grisu-integral-base) extra_args+=(--property num::imp::flt2dec::strategy::grisu::generate_integral_digits.loop_invariant_base.1) ;;
+            grisu-integral-step) extra_args+=(--property num::imp::flt2dec::strategy::grisu::generate_integral_digits.loop_invariant_step.1) ;;
+            grisu-safety)
+              cbmc_build/bin/cbmc diagnostic-counter.out --show-properties --json-ui > properties.json
+              python3 -I - <<'PY' > selected-properties.txt
+          import json
+          from pathlib import Path
+          reports = json.loads(Path("properties.json").read_text())
+          properties = [item for report in reports for item in report.get("properties", [])]
+          names = [item["name"] for item in properties if item["class"] not in {"cover", "reachability_check"}]
+          assert names
+          print("\n".join(names))
+          PY
+              while IFS= read -r property; do extra_args+=(--property "$property"); done < selected-properties.txt
+              ;;
             counter-frame)
               object_bits=10
               extra_args+=(--property num::imp::flt2dec::strategy::dragon::generate_exact_digits.assigns.2)
@@ -107,7 +130,7 @@ jobs:
               ;;
             *) exit 2 ;;
           esac
-          timeout 180s cbmc_build/bin/cbmc diagnostic-counter.out --unwind 41 \
+          timeout 180s cbmc_build/bin/cbmc diagnostic-counter.out --unwind "$unwind" \
             --no-malloc-may-fail --no-undefined-shift-check --no-signed-overflow-check \
             --nan-check --no-self-loops-to-assumptions --no-pointer-primitive-check \
             --object-bits "$object_bits" --slice-formula --verbosity 9 "${extra_args[@]}" > counter.log 2>&1 &
