@@ -120,6 +120,8 @@ jobs:
               echo num::imp::flt2dec::strategy::grisu::grisu_verify::check_scale_shortest_73_symmetric > harnesses.txt
             elif [[ "$HARNESS_GROUP" == *scaling-asymmetric* ]]; then
               echo num::imp::flt2dec::strategy::grisu::grisu_verify::check_scale_shortest_73_asymmetric > harnesses.txt
+            elif [[ "$HARNESS_GROUP" == *grisu-exact-generator* ]]; then
+              echo num::imp::flt2dec::strategy::grisu::grisu_verify::f64_exp_1023::check_format_exact_opt > harnesses.txt
             elif [[ "$HARNESS_GROUP" == *grisu-generator* ]]; then
               echo num::imp::flt2dec::strategy::grisu::grisu_verify::f64_exp_1023::check_format_shortest_opt > harnesses.txt
             elif [[ "$HARNESS_GROUP" == *scaling-full* ]]; then
@@ -190,6 +192,8 @@ jobs:
             target/kani_verify_std/target/**/out/*check_normalize_shortest.out
             target/kani_verify_std/target/**/out/*check_scaling_arithmetic_73.out
             target/kani_verify_std/target/**/out/*check_scaling_interval_73.out
+            target/kani_verify_std/target/**/out/*f64_exp_1023*check_format_exact_opt.out
+            target/kani_verify_std/target/**/out/*f64_exp_1023*check_format_shortest_opt.out
           if-no-files-found: ignore
 
   scaling-properties:
