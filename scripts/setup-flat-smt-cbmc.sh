@@ -8,13 +8,16 @@ set -euo pipefail
 release=cbmc-6.11.0
 fix=e36c27dd2e57ef6ce39c02a382d1c60ff6f4593f
 trace_fix=d7caa9d6ff314348a99cb31778e569239ff6dd27
-revision="$release-$fix-$trace_fix"
 repository_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+dfcc_patch="$repository_root/scripts/cbmc-skip-unused-loop-assigns.patch"
+dfcc_fix=$(shasum -a 256 "$dfcc_patch" | awk '{print $1}')
+revision="$release-$fix-$trace_fix-$dfcc_fix"
 build_root=${1:-"$repository_root/cbmc_build"}
 mkdir -p "$build_root/bin"
 build_root=$(cd "$build_root" && pwd)
 
-if [[ -x "$build_root/bin/cbmc" && -f "$build_root/bin/revision" ]] &&
+if [[ -x "$build_root/bin/cbmc" && -x "$build_root/bin/goto-instrument" &&
+      -f "$build_root/bin/revision" ]] &&
     [[ $(cat "$build_root/bin/revision") == "$revision" ]]; then
     echo "CBMC with the flat SMT fix is up to date."
     exit 0
@@ -44,6 +47,7 @@ mkdir "$work_root/source"
 tar -xzf "$work_root/source.tar.gz" -C "$work_root/source" --strip-components 1
 patch --batch -p1 -d "$work_root/source" < "$work_root/overflow.patch"
 patch --batch -p1 -d "$work_root/source" < "$work_root/traces.patch"
+patch --batch -p1 -d "$work_root/source" < "$dfcc_patch"
 
 # Keep CBMC's pinned MiniSAT checksum, using Debian's HTTPS endpoint.
 python3 -I - "$work_root/source/src/solvers/CMakeLists.txt" <<'PY'
@@ -61,7 +65,8 @@ PY
 cmake -S "$work_root/source" -B "$work_root/build" \
     -DCMAKE_BUILD_TYPE=Release -DWITH_JBMC=OFF -DWITH_MEMORY_ANALYZER=OFF \
     -DCMAKE_POLICY_VERSION_MINIMUM=3.5
-cmake --build "$work_root/build" --target cbmc --parallel 2
+cmake --build "$work_root/build" --target cbmc goto-instrument --parallel 2
 install -m 755 "$work_root/build/bin/cbmc" "$build_root/bin/cbmc"
+install -m 755 "$work_root/build/bin/goto-instrument" "$build_root/bin/goto-instrument"
 printf '%s\n' "$revision" > "$build_root/bin/revision"
 rm -rf "$work_root"
