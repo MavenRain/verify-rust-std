@@ -1032,6 +1032,7 @@ pub mod grisu_verify {
     #[kani::requires(threshold <= u64::MAX / 10)]
     #[kani::requires(threshold as u128 == proof_threshold(delta, exponent))]
     #[kani::ensures(|result| *result as u128 == proof_threshold(delta, exponent + 1))]
+    #[kani::ensures(|result| *result == threshold * 10)]
     pub(super) fn advance_fraction_threshold(delta: u64, exponent: usize, threshold: u64) -> u64 {
         let _ = (delta, exponent);
         threshold * 10
