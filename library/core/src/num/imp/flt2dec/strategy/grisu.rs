@@ -459,17 +459,17 @@ fn generate_shortest<'a>(d: &Decoded, buf: &'a mut [MaybeUninit<u8>]) -> Shortes
 
         #[cfg(kani)]
         {
-            assert!(i <= 16, "fractional digit capacity");
-            assert!(ulp < 1u64 << 50, "fractional scale width");
-            assert!(
+            crate::kani::internal::check(i <= 16, "fractional digit capacity");
+            crate::kani::internal::check(ulp < 1u64 << 50, "fractional scale width");
+            crate::kani::internal::check(
                 ulp == grisu_verify::proof_power10(i - max_kappa as usize - 1),
                 "fractional power update",
             );
-            assert!(
+            crate::kani::internal::check(
                 threshold as u128 == delta1frac as u128 * ulp as u128,
                 "fractional threshold update",
             );
-            assert!(
+            crate::kani::internal::check(
                 2 * ((plus.f - v.f) as u128) < delta1 as u128
                     || remainder.wrapping_sub(threshold)
                         << ((64 - (e - 16 + (i - max_kappa as usize - 1))) as u8)
