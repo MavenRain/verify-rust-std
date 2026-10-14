@@ -195,12 +195,12 @@ jobs:
       RAYON_NUM_THREADS: 1
       KANI_JOBS: 1
       KANI_PATCHED_CBMC: 'true'
-      KANI_OBJECT_BITS: ${{ (matrix.group == 'dragon-loop-frame' || startsWith(matrix.group, 'grisu-shortest-single-')) && '10' || (matrix.group == 'dragon-loop-instrumentation' || matrix.group == 'dragon-shortest-fixed-exponent') && '12' || (inputs.suite == 'generators' || inputs.suite == 'grisu-generators' || inputs.suite == 'exact-digits') && '14' || '12' }}
+      KANI_OBJECT_BITS: ${{ (matrix.group == 'dragon-loop-frame' || startsWith(matrix.group, 'grisu-shortest-single-') || startsWith(matrix.group, 'grisu-shortest-smt-')) && '10' || (matrix.group == 'dragon-loop-instrumentation' || matrix.group == 'dragon-shortest-fixed-exponent') && '12' || (inputs.suite == 'generators' || inputs.suite == 'grisu-generators' || inputs.suite == 'exact-digits') && '14' || '12' }}
       PROOF_TIMEOUT: ${{ matrix.group == 'dragon-loop-frame' && '180s' || startsWith(matrix.group, 'grisu-shortest-single-') && '7200s' || inputs.suite == 'generators' && '3600s' || (inputs.suite == 'grisu-generators' || inputs.suite == 'exact-digits') && '1800s' || '420s' }}
       KANI_SYMEX_CACHE_DEREFERENCES: 'true'
       KANI_ARRAY_FIELD_SENSITIVITY: 'true'
       HARNESS_GROUP: ${{ matrix.group }}
-      SOLVER: ${{ inputs.solver != 'auto' && inputs.solver || (matrix.group == 'scaling-refinement' || matrix.group == 'scaling-flat-smt' || matrix.group == 'normalization-scaling-smt' || startsWith(matrix.group, 'arithmetic-smt-')) && 'minisat' || 'kissat' }}
+      SOLVER: ${{ inputs.solver != 'auto' && inputs.solver || (matrix.group == 'scaling-refinement' || matrix.group == 'scaling-flat-smt' || matrix.group == 'normalization-scaling-smt' || startsWith(matrix.group, 'arithmetic-smt-') || startsWith(matrix.group, 'grisu-shortest-smt-')) && 'minisat' || 'kissat' }}
       KANI_FLAT_SMT_Z3: ${{ (matrix.group == 'scaling-flat-smt' || matrix.group == 'normalization-scaling-smt') && 'true' || 'false' }}
       KANI_ARITHMETIC_REFINEMENT: ${{ matrix.group == 'scaling-refinement' && 'true' || 'false' }}
     steps:
@@ -246,6 +246,8 @@ jobs:
             printf 'num::imp::flt2dec::strategy::grisu::grisu_verify::%s::check_format_shortest_opt\n' "${BASH_REMATCH[1]}" > harnesses.txt
           elif [[ "$HARNESS_GROUP" == grisu-shortest-trace-31 ]]; then
             echo num::imp::flt2dec::strategy::grisu::grisu_verify::f64_31::check_format_shortest_opt > harnesses.txt
+          elif [[ "$HARNESS_GROUP" =~ ^grisu-shortest-smt-(sum|off)$ ]]; then
+            echo num::imp::flt2dec::strategy::grisu::grisu_verify::f32_00::check_format_shortest_opt > harnesses.txt
           elif [[ "$HARNESS_GROUP" == dragon-digit-remainder ]]; then
             echo num::imp::flt2dec::strategy::dragon::dragon_verify::check_digit_remainder_contract > harnesses.txt
           elif [[ "$HARNESS_GROUP" == dragon-loop-instrumentation ]]; then
@@ -299,7 +301,7 @@ jobs:
             python3 -I scripts/kani-std-analysis/flt2dec_harnesses.py --group "$HARNESS_GROUP" > harnesses.txt
           fi
       - name: Install arithmetic diagnostic solver
-        if: startsWith(matrix.group, 'arithmetic-smt-')
+        if: startsWith(matrix.group, 'arithmetic-smt-') || startsWith(matrix.group, 'grisu-shortest-smt-')
         run: |
           bash scripts/setup-cvc5.sh "$PWD/cvc5_build"
           KANI_CVC5_BINARY="$PWD/cvc5_build/bin/cvc5" bash scripts/kani-std-analysis/test_cvc5_flat_smt.sh
@@ -336,7 +338,7 @@ jobs:
           while IFS= read -r harness; do
             harness_args+=(--harness "$harness")
           done < harnesses.txt
-          if [[ "$HARNESS_GROUP" == arithmetic-smt-* ]]; then
+          if [[ "$HARNESS_GROUP" == arithmetic-smt-* || "$HARNESS_GROUP" == grisu-shortest-smt-* ]]; then
             export KANI_DIAGNOSTIC_SMT2_SOLVER="$PWD/cvc5-wrapper.sh"
           fi
           set -o pipefail
@@ -344,7 +346,7 @@ jobs:
           if [[ "$HARNESS_GROUP" == grisu-shortest-trace-31 ]]; then
             trace_args=(--export-json proof-results.json --concrete-playback print)
           fi
-          if [[ "$HARNESS_GROUP" == dragon-loop-instrumentation || "$HARNESS_GROUP" == dragon-shortest-fixed-exponent ]]; then
+          if [[ "$HARNESS_GROUP" == dragon-loop-instrumentation || "$HARNESS_GROUP" == dragon-shortest-fixed-exponent || "$HARNESS_GROUP" == grisu-shortest-smt-* ]]; then
             ulimit -v 8388608
           elif [[ "$HARNESS_GROUP" == dragon-loop-frame ]]; then
             # Keep the runner alive to upload the model when instrumentation grows.
