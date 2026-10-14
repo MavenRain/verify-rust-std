@@ -412,6 +412,7 @@ fn generate_shortest<'a>(d: &Decoded, buf: &'a mut [MaybeUninit<u8>]) -> Shortes
             && threshold <= remainder
             && threshold as u128 == delta1frac as u128 * ulp as u128
             && ulp == grisu_verify::proof_power10(i - max_kappa as usize - 1)
+            && remainder as u32 == (plus1frac as u32).wrapping_mul(ulp as u32)
             && grisu_verify::initialized_digits(buf, i)
     ))]
     #[cfg_attr(kani, kani::loop_modifies(
