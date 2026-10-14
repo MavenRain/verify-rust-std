@@ -89,6 +89,12 @@ jobs:
             no-simplify) extra_args+=(--no-simplify) ;;
             no-propagation) extra_args+=(--no-propagation) ;;
             no-array-fields) extra_args+=(--no-array-field-sensitivity) ;;
+            counter-frame)
+              extra_args+=(--property num::imp::flt2dec::strategy::dragon::generate_exact_digits.assigns.2)
+              ;;
+            counter-cover)
+              extra_args+=(--json-ui --property num::imp::flt2dec::strategy::dragon::dragon_verify::check_exact_digit_loop_frame.cover.1)
+              ;;
             *) exit 2 ;;
           esac
           timeout 180s cbmc_build/bin/cbmc diagnostic-counter.out --unwind 41 \
@@ -109,6 +115,20 @@ jobs:
           wait "$driver_pid"
           status=$?
           tail -30 counter.log
+          if [[ "$CBMC_MODE" == counter-cover && "$status" == 10 ]]; then
+            python3 -I - <<'PY'
+          import json
+          from pathlib import Path
+          reports = json.loads(Path("counter.log").read_text())
+          results = [item for report in reports for item in report.get("result", [])]
+          expected = "num::imp::flt2dec::strategy::dragon::dragon_verify::check_exact_digit_loop_frame.cover.1"
+          assert len(results) == 1, results
+          assert results[0]["property"] == expected, results
+          assert results[0]["status"] == "FAILURE", results
+          print("The generated digit cover has a witness.")
+          PY
+            exit $?
+          fi
           exit "$status"
       - uses: actions/upload-artifact@v4
         if: always()
