@@ -130,7 +130,7 @@ jobs:
       KANI_JOBS: 1
       KANI_PATCHED_CBMC: 'true'
       KANI_OBJECT_BITS: ${{ (inputs.suite == 'generators' || inputs.suite == 'grisu-generators' || inputs.suite == 'exact-digits') && '14' || '12' }}
-      PROOF_TIMEOUT: ${{ startsWith(matrix.group, 'grisu-shortest-single-') && '7200s' || inputs.suite == 'generators' && '3600s' || (inputs.suite == 'grisu-generators' || inputs.suite == 'exact-digits') && '1800s' || '420s' }}
+      PROOF_TIMEOUT: ${{ matrix.group == 'dragon-loop-frame' && '180s' || startsWith(matrix.group, 'grisu-shortest-single-') && '7200s' || inputs.suite == 'generators' && '3600s' || (inputs.suite == 'grisu-generators' || inputs.suite == 'exact-digits') && '1800s' || '420s' }}
       KANI_SYMEX_CACHE_DEREFERENCES: 'true'
       KANI_ARRAY_FIELD_SENSITIVITY: 'true'
       HARNESS_GROUP: ${{ matrix.group }}
@@ -298,6 +298,7 @@ jobs:
             target/kani_verify_std/target/**/out/*f64_exp_1023*check_format_exact_opt.out
             target/kani_verify_std/target/**/out/*f64_exp_1023*check_format_shortest_opt.out
             target/kani_verify_std/target/**/out/*dragon*f64_exp_1023*check_format_exact.out
+            target/kani_verify_std/target/**/out/*check_exact_digit_loop_frame.out
             target/kani_verify_std/target/**/out/*grisu*f64_31*check_format_shortest_opt.out
           if-no-files-found: ignore
 

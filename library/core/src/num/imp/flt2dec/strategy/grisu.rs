@@ -955,8 +955,8 @@ pub mod grisu_verify {
     pub(super) fn initialized_digits(buf: &[MaybeUninit<u8>], len: usize) -> bool {
         macro_rules! check_digit {
             ($($index:literal),+ $(,)?) => {
-                true $(&& (len <= $index || (
-                    kani::mem::can_dereference(unsafe { buf.as_ptr().add($index).cast::<u8>() })
+                true $(&& (buf.len() <= $index || len <= $index || (
+                    kani::mem::can_dereference(crate::ptr::addr_of!(buf[$index]) as *const u8)
                         && unsafe { buf[$index].assume_init() >= b'0' && buf[$index].assume_init() <= b'9' }
                 )))+
             };
