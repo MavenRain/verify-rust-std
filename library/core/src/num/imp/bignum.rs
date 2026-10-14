@@ -480,16 +480,45 @@ impl Big {
         value
     }
 
-    #[rustc_force_inline]
     pub(crate) fn kani_size(&self) -> usize {
         self.size
+    }
+
+    // Keep these helpers exclusive to loop invariants. Shared callees can
+    // receive a mismatched DFCC parameter: model-checking/kani#4796.
+    pub(crate) fn kani_invariant_size(&self) -> usize {
+        self.size
+    }
+
+    pub(crate) fn kani_invariant_valid_storage(&self) -> bool {
+        macro_rules! inactive_limbs_are_zero {
+            ($($index:literal),+ $(,)?) => {
+                true $(& ((self.size > $index) | (self.base[$index] == 0)))+
+            };
+        }
+        self.size <= KANI_LIMBS && kani_for_each_limb!(inactive_limbs_are_zero)
+    }
+
+    pub(crate) fn kani_invariant_less_than(&self, other: &Self) -> bool {
+        macro_rules! compare_limbs {
+            ($($index:literal),+ $(,)?) => {{
+                let less = false;
+                $(
+                    let active = (self.size > $index) | (other.size > $index);
+                    let equal = self.base[$index] == other.base[$index];
+                    let less = (active & (self.base[$index] < other.base[$index]))
+                        | ((!active | equal) & less);
+                )+
+                less
+            }};
+        }
+        self.size <= KANI_LIMBS && other.size <= KANI_LIMBS && kani_for_each_limb!(compare_limbs)
     }
 
     pub(crate) fn kani_limbs_mut(&mut self) -> &mut [Digit; KANI_LIMBS] {
         &mut self.base
     }
 
-    #[rustc_force_inline]
     pub(crate) fn kani_valid_storage(&self) -> bool {
         let size = kani_loop_size(self.size);
         // Constant indices avoid unfolding a symbolic slice iterator in every
@@ -505,7 +534,6 @@ impl Big {
 
     // The equivalence proof in dragon_verify checks these constant-index
     // models for every in-bounds storage size and arbitrary limb contents.
-    #[rustc_force_inline]
     pub(crate) fn kani_cmp_model(&self, other: &Self) -> crate::cmp::Ordering {
         use crate::cmp::Ordering::{Equal, Greater, Less};
 

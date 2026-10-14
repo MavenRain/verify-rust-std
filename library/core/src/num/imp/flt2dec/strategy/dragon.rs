@@ -231,13 +231,14 @@ pub fn format_shortest<'a>(
     #[cfg_attr(kani, kani::loop_modifies(&i, &mant, &minus, &plus, &down, &up, &buf[..]))]
     #[cfg_attr(kani, kani::loop_invariant(
         i < MAX_SIG_DIGITS
-            && mant.kani_valid_storage() && minus.kani_valid_storage() && plus.kani_valid_storage()
-            && mant.kani_size() <= proof_max_limbs
-            && minus.kani_size() <= proof_max_limbs
-            && plus.kani_size() <= proof_max_limbs
-            && mant.kani_cmp_model(&proof_scale10) == Ordering::Less
-            && minus.kani_cmp_model(&proof_scale10) == Ordering::Less
-            && plus.kani_cmp_model(&proof_scale10) == Ordering::Less
+            && mant.kani_invariant_valid_storage()
+            && minus.kani_invariant_valid_storage() && plus.kani_invariant_valid_storage()
+            && mant.kani_invariant_size() <= proof_max_limbs
+            && minus.kani_invariant_size() <= proof_max_limbs
+            && plus.kani_invariant_size() <= proof_max_limbs
+            && mant.kani_invariant_less_than(&proof_scale10)
+            && minus.kani_invariant_less_than(&proof_scale10)
+            && plus.kani_invariant_less_than(&proof_scale10)
             && (i == 0 || proof_scale10.cmp(mant.clone().add(&plus)) >= rounding)
             && scale < shortest_remaining_margin(&minus, &plus, i)
             && initialized_digit_prefix(buf, i)
@@ -367,9 +368,9 @@ fn generate_exact_digits(
     #[cfg_attr(kani, kani::loop_invariant(
         kani::index <= len
             && len <= dragon_verify::PROOF_BUFLEN
-            && mant.kani_size() <= proof_max_limbs
-            && mant.kani_valid_storage()
-            && mant.kani_cmp_model(&proof_scale10) == Ordering::Less
+            && mant.kani_invariant_size() <= proof_max_limbs
+            && mant.kani_invariant_valid_storage()
+            && mant.kani_invariant_less_than(&proof_scale10)
             && initialized_digit_prefix(buf, kani::index)
     ))]
     for i in 0..len {
@@ -607,6 +608,9 @@ pub mod dragon_verify {
         assert!(left.cmp(&right) == left.kani_cmp_model(&right));
         assert!(left.is_zero() == left.kani_is_zero_model());
         let ordering = left.kani_cmp_model(&right);
+        assert!(left.kani_invariant_size() == left.kani_size());
+        assert!(left.kani_invariant_valid_storage() == left.kani_valid_storage());
+        assert!(left.kani_invariant_less_than(&right) == (ordering == Ordering::Less));
         kani::cover(ordering == Ordering::Less, "comparison can be less");
         kani::cover(ordering == Ordering::Equal, "comparison can be equal");
         kani::cover(ordering == Ordering::Greater, "comparison can be greater");
