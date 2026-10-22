@@ -2541,7 +2541,7 @@ pub mod dragon_verify {
             )]
             #[kani::stub(<Big as crate::cmp::Ord>::cmp, stub_cmp)]
             #[kani::stub(Big::is_zero, stub_is_zero)]
-            #[kani::solver(cadical)]
+            #[kani::solver(kissat)]
             fn check_scale_shortest() {
                 let mant = kani::any::<u64>() & ((1u64 << 55) - 1);
                 let minus = 1;
