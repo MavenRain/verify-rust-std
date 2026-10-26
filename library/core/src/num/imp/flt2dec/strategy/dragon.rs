@@ -2371,17 +2371,17 @@ pub mod dragon_verify {
     }
 
     // True if `tops` lists the sub-piece indices next, next + 1, ..., n - 1 once, in
-    // increasing order, for n = 2 or 4:  the sub-pieces of a piece then take each value of
-    // the top mantissa bit (2 sub-pieces) or the top 2 bits (4 sub-pieces) once.
+    // increasing order, for n = 2, 4 or 8:  the sub-pieces of a piece then take each value of
+    // the top mantissa bit (2 sub-pieces), the top 2 bits (4) or the top 3 bits (8) once.
     const fn fixed_k_tops_cover(tops: &[u8], next: u8) -> bool {
         match tops {
-            [] => next == 2 || next == 4,
+            [] => next == 2 || next == 4 || next == 8,
             [top, rest @ ..] => *top == next && fixed_k_tops_cover(rest, next + 1),
         }
     }
 
     // The shift of the top mantissa bits that pick the sub-piece of a piece at exponent
-    // `exp` (1 bit for 2 sub-pieces, 2 bits for 4). The mantissa is below 2^bits, with bits
+    // `exp` (1, 2 or 3 bits for 2, 4 or 8 sub-pieces). The mantissa is below 2^bits, with bits
     // as in fixed_k_limb_bound. The masked bits take each value once for any shift, so the
     // sub-pieces cover the piece;  this shift splits the largest mantissas.
     const fn fixed_k_mant_shift(exp: i16, k: i16, pieces: u64) -> u32 {
@@ -2453,7 +2453,7 @@ pub mod dragon_verify {
     // of mant from MANT_SHIFT up, masked to $mant_pieces - 1, equal $mant_top.
     macro_rules! check_dragon_scale_fixed_k_harness {
         // A piece split on the top mantissa bits: one module per sub-piece. The list must be
-        // 0..n - 1 in increasing order for n = 2 or 4, or the build fails.
+        // 0..n - 1 in increasing order for n = 2, 4 or 8, or the build fails.
         (
             $window:literal,
             $k:expr,
@@ -2814,7 +2814,10 @@ pub mod dragon_verify {
                 e12 => 12, e13 => 13, e14 => 14, e15 => 15,
             ],
             k200 => -200 => [
-                e00 => 0, e01 => 1, e02 => 2, e03 => 3,
+                e00 => 0,
+                e01 => 1 => [m0 => 0, m1 => 1, m2 => 2, m3 => 3],
+                e02 => 2 => [m0 => 0, m1 => 1, m2 => 2, m3 => 3],
+                e03 => 3,
                 e04 => 4, e05 => 5, e06 => 6, e07 => 7,
                 e08 => 8, e09 => 9, e10 => 10, e11 => 11,
                 e12 => 12, e13 => 13, e14 => 14, e15 => 15,
@@ -2905,7 +2908,11 @@ pub mod dragon_verify {
             k160 => -160, k159 => -159, k158 => -158, k157 => -157, k156 => -156, k155 => -155,
             k154 => -154,
             k153 => -153 => [
-                e00 => 0, e01 => 1, e02 => 2, e03 => 3,
+                e00 => 0, e01 => 1,
+                e02 => 2 => [
+                    m0 => 0, m1 => 1, m2 => 2, m3 => 3, m4 => 4, m5 => 5, m6 => 6, m7 => 7,
+                ],
+                e03 => 3,
                 e04 => 4, e05 => 5, e06 => 6, e07 => 7,
                 e08 => 8, e09 => 9, e10 => 10, e11 => 11,
                 e12 => 12, e13 => 13, e14 => 14, e15 => 15,
