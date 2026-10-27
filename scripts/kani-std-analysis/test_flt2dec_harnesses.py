@@ -85,9 +85,9 @@ class Flt2decHarnessesTests(unittest.TestCase):
 
     def test_complete_disjoint_batches_on_both_platforms(self):
         self.assertEqual(OPERATING_SYSTEMS, ["ubuntu-latest", "macos-latest"])
-        self.assertEqual(len(self.groups), 707)
+        self.assertEqual(len(self.groups), 724)
         self.assertEqual(len({group["name"] for group in self.groups}), len(self.groups))
-        self.assertEqual(sum(len(group["harnesses"]) for group in self.groups), 3696)
+        self.assertEqual(sum(len(group["harnesses"]) for group in self.groups), 3712)
         self.assertEqual(len(set(self.dedicated)), len(self.dedicated))
         for part in MATRIX_JOBS:
             parts = proof_matrix(matrix_job=part)["group"]
@@ -96,7 +96,7 @@ class Flt2decHarnessesTests(unittest.TestCase):
             minutes = group["timeout_minutes"]
             with self.subTest(group=group["name"]):
                 self.assertTrue(group["harnesses"])
-                self.assertIn(minutes, (7, 30, 60, 120, 180))
+                self.assertIn(minutes, (7, 30, 60, 120, 180, 240))
                 self.assertLessEqual(minutes * len(group["harnesses"]), 240)
 
     def test_shift_models_cover_all_safe_whole_limb_offsets(self):
@@ -202,11 +202,11 @@ class Flt2decHarnessesTests(unittest.TestCase):
                                  "dragon-" + "abcd"[(window >= 34) + (window >= 68) + (window >= 98)])
                 self.assertEqual(group["timeout_minutes"], minutes)
                 self.assertLessEqual(len(group["harnesses"]), batch_size)
-        self.assertEqual(len(DRAGON_SLOW_PAIRS), 16)
-        self.assertEqual(sum(1 for group in groups if group["timeout_minutes"] == 180), 195)
+        self.assertEqual(len(DRAGON_SLOW_PAIRS), 14)
+        self.assertEqual(sum(1 for group in groups if group["timeout_minutes"] == 180), 212)
         self.assertEqual(sum(1 for group in groups if group["timeout_minutes"] == 60), 3)
         self.assertEqual(tuple(len(proof_matrix(matrix_job=job)["group"])
-                               for job in MATRIX_JOBS[2:]), (108, 100, 81, 81, 69, 102))
+                               for job in MATRIX_JOBS[2:]), (109, 97, 81, 81, 82, 108))
 
     def test_all_float_partitions_and_equivalence_cases_remain(self):
         self.assertIn(
@@ -379,7 +379,7 @@ class Flt2decHarnessesTests(unittest.TestCase):
         self.assertEqual(split, [("v0", "0", "1 << 63"), ("v1", "1 << 63", "1 << 64")])
 
     def test_dragon_split_pairs_run_one_group_per_piece(self):
-        self.assertEqual(len(DRAGON_SPLIT_PAIRS), 15)
+        self.assertEqual(len(DRAGON_SPLIT_PAIRS), 18)
         self.assertEqual(sum(len(offsets) == 16 for offsets in DRAGON_SPLIT_PAIRS.values()), 12)
         self.assertEqual(set(DRAGON_SPLIT_PAIRS) & set(DRAGON_SLOW_PAIRS), set())
         names = {group["name"]: group for group in self.groups}
@@ -406,7 +406,7 @@ class Flt2decHarnessesTests(unittest.TestCase):
                          f"{DRAGON}::dragon_scale_fixed_k::w000::k317::e00::check_scale_shortest")
 
     def test_dragon_mantissa_splits_run_one_group_per_sub_piece(self):
-        self.assertEqual(DRAGON_MANTISSA_SPLITS, {(34, -153, 2): 8})
+        self.assertEqual(DRAGON_MANTISSA_SPLITS, {(23, -203, 3): 8, (34, -153, 2): 8})
         names = {group["name"]: group for group in self.groups}
         for (window, k, offset), count in DRAGON_MANTISSA_SPLITS.items():
             piece = (f"dragon-shortest-scaling-fixed-k-{window:03d}-{'k' if k < 0 else 'p'}{abs(k):03d}"

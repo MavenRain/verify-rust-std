@@ -24,17 +24,21 @@ DRAGON_FIXED_K_WINDOWS = 128
 DRAGON_SLOW_BAND = range(-319, -310)
 # Pairs that timed out at 30 or 60 minutes in their group of eight or four (run 39215660085,
 # ubuntu or macOS):  each runs alone at 180 minutes, its group keeps the other pairs (ruling s54 (a)).
+# (29, -171) took 69 minutes on ubuntu in its group of six (fork run 40457228556, ruling s90).
 DRAGON_SLOW_PAIRS = (
-    (1, -310), (1, -314), (6, -285), (6, -286), (7, -283), (23, -206), (28, -184), (29, -175),
-    (34, -154), (34, -155), (46, -91), (46, -92), (46, -93), (46, -94), (46, -95), (47, -90),
+    (1, -310), (1, -314), (6, -285), (6, -286), (7, -283), (23, -206), (28, -184), (29, -171),
+    (29, -175), (34, -155), (46, -91), (46, -94), (46, -95), (47, -90),
 )
 # Pairs whose proof splits on the exponent (dragon.rs `kNNN => K => [eNN => offset]`):  pair -> the
 # exponent offsets of its pieces;  each piece covers 4 exponents and runs alone at 180 minutes.
-# Each pair here hit the 180-minute cap alone:  (0, -317) in the slow band, the rest as slow pairs.
-# They run in 4 pieces of 4 exponents;  the 11 pairs whose pieces hit the cap again run in
-# 16 pieces of 1 exponent.
+# Each pair here hit the 180-minute cap alone:  (0, -317) in the slow band, the rest as slow pairs
+# ((34, -154), (46, -92) and (46, -93):  161, 253 and 190 minutes on macOS, fork run 40457216722,
+# ruling s90).  They run in 4 pieces of 4 exponents;  the 12 pairs whose pieces hit the cap again
+# run in 16 pieces of 1 exponent.
 DRAGON_SPLIT_PAIRS = {
-    **{pair: (0, 4, 8, 12) for pair in ((0, -317), (29, -172), (47, -91))},
+    **{pair: (0, 4, 8, 12) for pair in (
+        (0, -317), (29, -172), (34, -154), (46, -92), (46, -93), (47, -91),
+    )},
     **{pair: tuple(range(16)) for pair in (
         (23, -200), (23, -201), (23, -202), (23, -203), (23, -204), (23, -205), (28, -183),
         (29, -173), (29, -174), (34, -151), (34, -152), (34, -153),
@@ -52,9 +56,10 @@ DRAGON_UNPROVED_PIECES = {
     (34, -153): (0, 1, 3),
 }
 # Pieces whose proof splits again on the mantissa (dragon.rs `eNN => offset => [mN => top]`):
-# (window, K, piece offset) -> the sub-piece count.  Piece e02 of (34, -153) hit the 180-minute
-# cap;  its 8 sub-pieces fix the top 3 mantissa bits, each alone at 180 minutes.
-DRAGON_MANTISSA_SPLITS = {(34, -153, 2): 8}
+# (window, K, piece offset) -> the sub-piece count.  Pieces e03 of (23, -203) (190 minutes on
+# macOS, fork run 40457216722, ruling s90) and e02 of (34, -153) hit the 180-minute cap;  their
+# 8 sub-pieces fix the top 3 mantissa bits, each alone at 180 minutes.
+DRAGON_MANTISSA_SPLITS = {(23, -203, 3): 8, (34, -153, 2): 8}
 # One CI matrix holds at most 256 jobs:  core, long (generator and cached proofs), and the fixed-K
 # pairs in four:  dragon-a (windows 000..033), dragon-b (034..067), dragon-c (068..097), dragon-d (098..127).
 # The pieces of the split pairs run in two more:  dragon-e (offsets 0..7) and dragon-f (8..15).
@@ -153,11 +158,12 @@ def proof_groups(pointer_width=None):
             f"{module}::f64_exp_1023::{proof}"
         ], timeout_minutes)
 
-    # Ubuntu proved the shortest probe in 65 minutes;  macOS is about twice as slow.
+    # Ubuntu proved the shortest probe in 65 minutes;  macOS took 161 minutes (fork run
+    # 40457216722), so the probe runs at 240 minutes (ruling s90).
     for mode in ("exact", "shortest"):
         add(f"grisu-{mode}-cached-power-39", "probe", [
             f"{GRISU}::f64_cached_power_39::check_format_{mode}_opt"
-        ], 180 if mode == "shortest" else 60)
+        ], 240 if mode == "shortest" else 60)
 
     add("dragon-exact-loop-frame", "equivalence", [
         f"{DRAGON}::check_exact_digit_loop_frame"
