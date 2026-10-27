@@ -2120,6 +2120,40 @@ pub mod dragon_verify {
         );
     }
 
+    // Diag only (branch g4-diag-s19):  a copy of check_carrying_mul_add_contract in its own
+    // group, so a proof_backend=cvc5 dispatch measures this one harness.
+    #[kani::proof_for_contract(carrying_mul_add_contract)]
+    #[kani::solver(z3)]
+    fn probe_carrying_mul_add_contract() {
+        let digit: Digit = kani::any();
+        let multiplier: Digit = kani::any();
+        let carry: Digit = kani::any();
+        let addend: Digit = kani::any();
+        let result = carrying_mul_add_contract(digit, multiplier, carry, addend);
+        let modeled = carrying_mul_add_model(digit, multiplier, carry, addend);
+        // First check the complete wide value. Packing two digit limbs is
+        // injective, so the subsequent limb comparison follows directly.
+        let result_bits = ((result.1 as WideDigit) << Digit::BITS) | result.0 as WideDigit;
+        let modeled_bits = ((modeled.1 as WideDigit) << Digit::BITS) | modeled.0 as WideDigit;
+        assert_eq!(result_bits, modeled_bits);
+        assert_eq!(result, modeled);
+        kani::cover(
+            digit == 0 && multiplier == 0 && addend == 0 && carry == 0,
+            "limb multiplication accepts all zero inputs",
+        );
+        kani::cover(
+            digit == Digit::MAX
+                && multiplier == Digit::MAX
+                && addend == Digit::MAX
+                && carry == Digit::MAX,
+            "limb multiplication accepts all maximum inputs",
+        );
+        kani::cover(
+            result == (Digit::MAX, Digit::MAX),
+            "limb multiplication reaches the full two-limb result",
+        );
+    }
+
     // Bigint division needs the remainder bound to justify the next limb's
     // division. Prove that scalar obligation separately; the storage contract
     // below does not depend on the quotient's numeric value.

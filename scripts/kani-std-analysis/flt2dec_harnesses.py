@@ -254,6 +254,11 @@ def proof_groups(pointer_width=None):
         add(f"grisu-multiplication-split-29-{split}", "contract",
             [f"{GRISU}::probe_multiply_29_{split}"], 30)
 
+    # Diag only:  the carry contract proof alone (probe copy).  The catalog backend stays native;
+    # dispatch this group with proof_backend=cvc5.
+    add("limb-multiplication-contract-probe", "contract",
+        [f"{DRAGON}::probe_carrying_mul_add_contract"], 30)
+
     # Each cached multiplication proof needs more than the 7-minute arithmetic budget,
     # so these native SAT proofs get their own 60-minute groups of four.
     cached_lengths = ((16, 1), (32, 2), (64, 3), (128, 5), (256, 10)) if pointer_width == 64 else (
