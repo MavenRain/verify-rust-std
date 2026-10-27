@@ -85,7 +85,7 @@ class Flt2decHarnessesTests(unittest.TestCase):
 
     def test_complete_disjoint_batches_on_both_platforms(self):
         self.assertEqual(OPERATING_SYSTEMS, ["ubuntu-latest", "macos-latest"])
-        self.assertEqual(len(self.groups), 724)
+        self.assertEqual(len(self.groups), 725)
         self.assertEqual(len({group["name"] for group in self.groups}), len(self.groups))
         self.assertEqual(sum(len(group["harnesses"]) for group in self.groups), 3712)
         self.assertEqual(len(set(self.dedicated)), len(self.dedicated))
@@ -257,6 +257,7 @@ class Flt2decHarnessesTests(unittest.TestCase):
         expected.add(f"{prefix}check_decimal_termination")
         expected.add(f"{prefix}check_advance_fraction_threshold")
         expected.update(f"{prefix}check_fractional_encoding_{power:02d}" for power in range(16))
+        expected.add("num::imp::flt2dec::strategy::dragon::dragon_verify::check_carrying_mul_add_contract")
         self.assertEqual(set(arithmetic), expected)
         self.assertEqual(len(arithmetic), len(expected))
         self.assertIn(f"{prefix}check_rounded_multiply", self.dedicated)

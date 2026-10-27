@@ -173,11 +173,16 @@ def proof_groups(pointer_width=None):
         f"{GRISU}::check_advance_fraction_threshold"
     ], 30, "cvc5")
 
+    # Native CBMC timed out at 120 minutes (fork run 40501202556);  cvc5 proved it in
+    # 0.83 s on macOS (fork run 40596618893), so it runs alone on cvc5 (ruling s94).
+    add("limb-multiplication-contract", "contract", [
+        f"{DRAGON}::check_carrying_mul_add_contract"
+    ], 7, "cvc5")
+
     foundations = {"contract": [], "equivalence": []}
     for name, module, proof, kind in [
         ("division-contract", DRAGON, "check_div_2pow10_contract", "contract"),
         ("limb-division-contract", DRAGON, "check_div_rem_digit_contract", "contract"),
-        ("limb-multiplication-contract", DRAGON, "check_carrying_mul_add_contract", "contract"),
         ("bigint-small-division-contract", DRAGON, "check_div_rem_small_contract", "contract"),
         ("rounding-contract", "num::imp::flt2dec::rounding_verify", "check_round_up_contract", "contract"),
         ("grisu-exact-rounding-contract", GRISU, "check_round_exact_contract", "contract"),
