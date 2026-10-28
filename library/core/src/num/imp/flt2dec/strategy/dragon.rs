@@ -2382,8 +2382,10 @@ pub mod dragon_verify {
 
     // The shift of the top mantissa bits that pick the sub-piece of a piece at exponent
     // `exp` (1, 2 or 3 bits for 2, 4 or 8 sub-pieces). The mantissa is below 2^bits, with bits
-    // as in fixed_k_limb_bound. The masked bits take each value once for any shift, so the
-    // sub-pieces cover the piece;  this shift splits the largest mantissas.
+    // as in fixed_k_limb_bound for `exp`:  the bound drops one bit per exponent, so the bits
+    // are taken per exponent. The masked bits take each value once for any shift, so the
+    // sub-pieces cover the piece;  this shift splits the largest mantissas of `exp`. The shift
+    // falls as `exp` grows, and the cast wraps a negative value.
     const fn fixed_k_mant_shift(exp: i16, k: i16, pieces: u64) -> u32 {
         let s_max = (k as i64 + 1) * (1 << 32) / 1292913986 - 1;
         let window_bits = s_max - exp as i64;
@@ -2449,8 +2451,10 @@ pub mod dragon_verify {
 
     // The proof of one fixed-K pair over the exponents FIRST + $exp_lo + (0..=$exp_mask) of its
     // window: (0, 15) is the whole window, a piece of a split pair takes 4 exponents or 1. A
-    // sub-piece (the tail $mant_top, $mant_pieces) also fixes the top mantissa bits: the bits
-    // of mant from MANT_SHIFT up, masked to $mant_pieces - 1, equal $mant_top.
+    // sub-piece (the tail $mant_top, $mant_pieces) also fixes the top mantissa bits, per
+    // exponent: the bits of mant from fixed_k_mant_shift(exp, K, $mant_pieces) up, masked to
+    // $mant_pieces - 1, equal $mant_top. MANT_SHIFT, the shift at the lowest exponent of the
+    // piece, is the largest;  the shift at the highest exponent (at most LAST) is the smallest.
     macro_rules! check_dragon_scale_fixed_k_harness {
         // A piece split on the top mantissa bits: one module per sub-piece. The list must be
         // 0..n - 1 in increasing order for n = 2, 4 or 8, or the build fails.
@@ -2554,7 +2558,17 @@ pub mod dragon_verify {
                 $({
                     const MANT_SHIFT: u32 = fixed_k_mant_shift(FIRST + $exp_lo, K, $mant_pieces);
                     const _: () = assert!(MANT_SHIFT <= 53);
-                    kani::assume((mant >> MANT_SHIFT) & ($mant_pieces - 1) == $mant_top);
+                    // The shift falls as exp grows, so the shift at EXP_HI is the smallest. A
+                    // negative shift wraps to a large u32, so this check rules out a wrap at
+                    // each exponent of the piece.
+                    const EXP_HI: i16 = {
+                        let hi = FIRST + $exp_lo + $exp_mask as i16;
+                        if hi < LAST { hi } else { LAST }
+                    };
+                    const _: () =
+                        assert!(fixed_k_mant_shift(EXP_HI, K, $mant_pieces) <= MANT_SHIFT);
+                    let mant_shift = fixed_k_mant_shift(exp, K, $mant_pieces);
+                    kani::assume((mant >> mant_shift) & ($mant_pieces - 1) == $mant_top);
                 })?
                 kani::assume(
                     crate::num::imp::flt2dec::estimator_verify::estimate_scaling_factor(mant + plus, exp)
@@ -3001,7 +3015,13 @@ pub mod dragon_verify {
             k102 => -102, k101 => -101, k100 => -100, k099 => -99, k098 => -98, k097 => -97,
             k096 => -96, k095 => -95, k094 => -94,
             k093 => -93 => [e00 => 0, e04 => 4, e08 => 8, e12 => 12],
-            k092 => -92 => [e00 => 0, e04 => 4, e08 => 8, e12 => 12],
+            k092 => -92 => [
+                e00 => 0,
+                e04 => 4 => [
+                    m0 => 0, m1 => 1, m2 => 2, m3 => 3, m4 => 4, m5 => 5, m6 => 6, m7 => 7,
+                ],
+                e08 => 8, e12 => 12,
+            ],
             k091 => -91,
             k090 => -90, k089 => -89, k088 => -88, k087 => -87, k086 => -86, k085 => -85,
             k084 => -84, k083 => -83, k082 => -82,
